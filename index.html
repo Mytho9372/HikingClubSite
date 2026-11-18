@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hiking Club Carpools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#e9eeea;--ink:#16211b;--pine:#1f4a35;--pine-d:#143426;--rock:#5f6f66;--line:#c5d0c8;--card:#f8faf8;--sun:#f2b441;--sun-bg:#fdf0cf;--bad:#a93226}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+h1,h2{font-family:"Bricolage Grotesque",system-ui,sans-serif;margin:0;line-height:1.1}
+header{background:var(--pine-d);color:#eef3ef;padding:28px 20px 24px;border-bottom:6px solid var(--sun)}
+.wrap{max-width:860px;margin:0 auto}
+header .wrap{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+h1{font-size:clamp(28px,6vw,44px);font-weight:800}
+header p{margin:6px 0 0;color:#b9cbbf;max-width:46ch}
+main{padding:22px 16px 60px}
+button{font:inherit;cursor:pointer;border:1px solid var(--pine);background:var(--pine);color:#fff;border-radius:6px;padding:8px 14px;font-weight:600}
+button:hover{background:var(--pine-d)}
+button.ghost{background:transparent;color:var(--pine)}
+button.ghost:hover{background:#dde7e0}
+header button.ghost{color:#eef3ef;border-color:#7f9a89}
+header button.ghost:hover{background:#25503b}
+button.danger{background:transparent;color:var(--bad);border-color:var(--bad)}
+button.danger:hover{background:#f6e3e0}
+button.small{padding:3px 9px;font-size:14px}
+input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);min-width:0}
+:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.dest{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:22px;overflow:hidden}
+.dest>.head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.dest h2{font-size:24px}
+.body{padding:16px 18px}
+.you{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.you input{flex:1 1 150px}
+.driver-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px;padding:10px 12px;background:#e3ebe5;border-radius:8px}
+.driver-row input[type=number]{width:80px}
+.driver-row span{color:var(--rock);font-size:14px;flex:1 1 100%}
+.car{border:1px solid var(--line);border-left:5px solid var(--pine);border-radius:8px;padding:12px 14px;margin-bottom:12px;background:#fff}
+.car.full{border-left-color:var(--rock)}
+.car .top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.car .who{font-weight:700}
+.car .meta{color:var(--rock);font-size:14px}
+.seats{font-weight:700;color:var(--pine)}
+.car.full .seats{color:var(--rock)}
+ul{list-style:none;margin:10px 0 0;padding:0}
+li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;flex-wrap:wrap}
+li+li{margin-top:2px}
+li.hl{background:var(--sun-bg);box-shadow:inset 4px 0 0 var(--sun)}
+li .ph{color:var(--rock);font-size:14px;margin-left:8px}
+.acts{display:flex;gap:6px}
+.open-seat{color:var(--rock);font-style:italic;padding:6px 8px}
+.wait{margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
+.wait h3{margin:0 0 4px;font-size:16px}
+.empty{color:var(--rock);padding:10px 0}
+.hostbar{background:var(--sun-bg);border:1px solid var(--sun);border-radius:8px;padding:12px 14px;margin-bottom:22px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hostbar strong{margin-right:auto}
+.hostbar input{flex:1 1 200px}
+#msg{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;max-width:90vw;display:none;z-index:9}
+#msg.err{background:var(--bad)}
+.setup{background:#fff;border:2px solid var(--bad);border-radius:8px;padding:16px}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div><h1>Hiking Club Carpools</h1><p>Offer a ride, grab a seat, or join the waitlist when every car is full.</p></div>
+  <button class="ghost" id="hostBtn" data-act="hostToggle">Host login</button>
+</div></header>
+<main class="wrap">
+  <div id="host"></div>
+  <div id="app"><p class="empty">Loading…</p></div>
+</main>
+<div id="msg" role="status"></div>
+
+<script>
+// ====== 1. PASTE YOUR SUPABASE DETAILS HERE (Project Settings -> API) ======
+const SUPABASE_URL = "PASTE_YOUR_PROJECT_URL_HERE";
+const SUPABASE_ANON_KEY = "PASTE_YOUR_ANON_PUBLIC_KEY_HERE";
+// ===========================================================================
+
+const configured = !SUPABASE_URL.startsWith("PASTE");
+const sb = configured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+let data = {dests: [], cars: [], riders: []};
+let hostPw = null;                 // kept in memory only; checked by the server on every host action
+const forms = {};                  // typed-in values per destination, survive re-rendering
+try { Object.assign(forms, JSON.parse(localStorage.getItem("carpoolForms") || "{}")); } catch (e) {}
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(text, isErr) {
+  const m = $("#msg"); m.textContent = text; m.className = isErr ? "err" : "";
+  m.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => m.style.display = "none", 3500);
+}
+function saveForms() { try { localStorage.setItem("carpoolForms", JSON.stringify(forms)); } catch (e) {} }
+const f = id => forms[id] || (forms[id] = {name: "", phone: "", seats: 3});
+
+async function load() {
+  if (!configured) {
+    $("#app").innerHTML = '<div class="setup"><strong>Almost there.</strong> Open index.html and paste your Supabase project URL and anon key at the top of the script.</div>';
+    return;
+  }
+  const [d, c, r] = await Promise.all([
+    sb.from("destinations").select("*").order("created_at"),
+    sb.from("cars").select("*").order("created_at"),
+    sb.from("riders").select("*").order("created_at")
+  ]);
+  const err = d.error || c.error || r.error;
+  if (err) { $("#app").innerHTML = '<div class="setup"><strong>Could not load data.</strong> ' + esc(err.message) + '<br>Check that you ran setup.sql and pasted the right URL and key.</div>'; return; }
+  data = {dests: d.data, cars: c.data, riders: r.data};
+  render();
+}
+
+function render() {
+  $("#hostBtn").textContent = hostPw ? "Log out of host" : "Host login";
+  $("#host").innerHTML = hostPw ? `<div class="hostbar"><strong>Host mode</strong>
+    <input id="newDest" placeholder="New destination, e.g. Cowles Mountain, Sat 8am" maxlength="80">
+    <button data-act="addDest">Add destination</button></div>` : "";
+  if (!data.dests.length) { $("#app").innerHTML = '<p class="empty">No trips yet. ' + (hostPw ? "Add a destination above." : "Check back once the host adds one.") + '</p>'; return; }
+  $("#app").innerHTML = data.dests.map(destHTML).join("");
+}
+
+function destHTML(d) {
+  const cars = data.cars.filter(c => c.destination_id === d.id);
+  const riders = data.riders.filter(r => r.destination_id === d.id);
+  const wait = riders.filter(r => !r.car_id);
+  const open = cars.reduce((n, c) => n + Math.max(0, c.seats - riders.filter(r => r.car_id === c.id).length), 0);
+  const v = f(d.id);
+  const riderRow = (r, pos) => `<li class="${r.highlighted ? "hl" : ""}"><span>${pos ? pos + ". " : ""}${esc(r.name)}<span class="ph">${esc(r.phone)}</span></span>
+    ${hostPw ? `<span class="acts"><button class="ghost small" data-act="hl" data-id="${r.id}">${r.highlighted ? "Unhighlight" : "Highlight"}</button><button class="danger small" data-act="kick" data-id="${r.id}">Kick</button></span>` : ""}</li>`;
+  return `<section class="dest" data-dest="${d.id}">
+    <div class="head"><h2>${esc(d.name)}</h2>${hostPw ? `<button class="danger small" data-act="delDest" data-id="${d.id}">Delete destination</button>` : ""}</div>
+    <div class="body">
+      <div class="you">
+        <input data-field="name" placeholder="Your name" value="${esc(v.name)}" maxlength="60" autocomplete="name">
+        <input data-field="phone" type="tel" placeholder="Your phone number" value="${esc(v.phone)}" maxlength="30" autocomplete="tel">
+      </div>
+      <div class="driver-row">
+        <label>Seats in my car <input data-field="seats" type="number" min="1" max="20" value="${esc(v.seats)}"></label>
+        <button data-act="offer">I’m driving</button>
+        <span>Seats for passengers, not counting you.</span>
+      </div>
+      ${cars.length ? cars.map(c => {
+        const rs = riders.filter(r => r.car_id === c.id), left = c.seats - rs.length;
+        return `<div class="car ${left <= 0 ? "full" : ""}">
+          <div class="top"><div><span class="who">${esc(c.driver_name)}</span> <span class="meta">${esc(c.phone)}</span></div>
+          <span class="seats">${left > 0 ? left + " of " + c.seats + " seats open" : "Full"}</span></div>
+          <ul>${rs.map(r => riderRow(r)).join("")}${left > 0 ? `<li class="open-seat"><span>${left} open ${left === 1 ? "seat" : "seats"}</span><button class="small" data-act="join" data-id="${c.id}">Take a seat</button></li>` : ""}</ul>
+          ${hostPw ? `<div style="margin-top:8px"><button class="danger small" data-act="delCar" data-id="${c.id}">Remove car</button></div>` : ""}
+        </div>`;
+      }).join("") : '<p class="empty">No drivers yet. Be the first to offer a ride.</p>'}
+      ${cars.length && open === 0 ? `<div class="wait"><h3>Waitlist (${wait.length})</h3>
+        <button data-act="wait">Join the waitlist</button></div>` : ""}
+      ${wait.length ? `<div class="wait" style="${open === 0 ? "border:0;padding-top:0;margin-top:8px" : ""}">${open === 0 ? "" : "<h3>Waitlist (" + wait.length + ")</h3>"}<ul>${wait.map((r, i) => riderRow(r, i + 1)).join("")}</ul></div>` : ""}
+    </div></section>`;
+}
+
+function who(destEl) {
+  const v = f(destEl.dataset.dest);
+  if (!v.name.trim() || !v.phone.trim()) { toast("Enter your name and phone number first.", true); return null; }
+  return v;
+}
+async function call(fn, args, ok) {
+  const {error} = await sb.rpc(fn, args);
+  if (error) toast(error.message, true); else if (ok) toast(ok);
+  await load();
+}
+
+document.addEventListener("input", e => {
+  const el = e.target, sec = el.closest("[data-dest]");
+  if (sec && el.dataset.field) { f(sec.dataset.dest)[el.dataset.field] = el.value; saveForms(); }
+});
+
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act, id = b.dataset.id, sec = b.closest("[data-dest]");
+  if (act === "hostToggle") {
+    if (hostPw) { hostPw = null; return render(); }
+    const pw = prompt("Host password:"); if (!pw) return;
+    const {data: okLogin, error} = await sb.rpc("host_login", {p_pw: pw});
+    if (error || !okLogin) return toast("Wrong password.", true);
+    hostPw = pw; return render();
+  }
+  if (act === "offer") { const v = who(sec); if (!v) return;
+    return call("add_car", {p_dest: sec.dataset.dest, p_name: v.name, p_phone: v.phone, p_seats: parseInt(v.seats, 10) || 1}, "You’re listed as a driver."); }
+  if (act === "join") { const v = who(sec); if (!v) return;
+    return call("join_car", {p_car: id, p_name: v.name, p_phone: v.phone}, "Seat taken."); }
+  if (act === "wait") { const v = who(sec); if (!v) return;
+    return call("join_waitlist", {p_dest: sec.dataset.dest, p_name: v.name, p_phone: v.phone}, "You’re on the waitlist."); }
+  if (act === "addDest") { const n = $("#newDest").value.trim(); if (!n) return toast("Enter a destination name.", true);
+    return call("host_add_destination", {p_pw: hostPw, p_name: n}, "Destination added."); }
+  if (act === "delDest") { if (!confirm("Delete this destination and everyone signed up for it?")) return;
+    return call("host_delete_destination", {p_pw: hostPw, p_id: id}, "Destination deleted."); }
+  if (act === "hl") return call("host_toggle_highlight", {p_pw: hostPw, p_rider: id});
+  if (act === "kick") { if (!confirm("Remove this person? The top of the waitlist will take their seat.")) return;
+    return call("host_kick", {p_pw: hostPw, p_rider: id}, "Removed."); }
+  if (act === "delCar") { if (!confirm("Remove this car? Its passengers move to open seats or the waitlist.")) return;
+    return call("host_delete_car", {p_pw: hostPw, p_car: id}, "Car removed."); }
+});
+
+load();
+setInterval(() => { if (!document.activeElement.matches("input")) load(); }, 10000);
+</script>
+</body>
+</html>
