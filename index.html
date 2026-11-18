@@ -6,7 +6,7 @@
 <title>Hiking Club Carpools</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
 <style>
 :root{--bg:#e9eeea;--ink:#16211b;--pine:#1f4a35;--pine-d:#143426;--rock:#5f6f66;--line:#c5d0c8;--card:#f8faf8;--sun:#f2b441;--sun-bg:#fdf0cf;--bad:#a93226}
 *{box-sizing:border-box}
@@ -76,12 +76,14 @@ li .ph{color:var(--rock);font-size:14px;margin-left:8px}
 
 <script>
 // ====== 1. PASTE YOUR SUPABASE DETAILS HERE (Project Settings -> API) ======
-const SUPABASE_URL = "PASTE_YOUR_PROJECT_URL_HERE";
-const SUPABASE_ANON_KEY = "PASTE_YOUR_ANON_PUBLIC_KEY_HERE";
+const SUPABASE_URL = "https://nfrmrimelppvytlebayf.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_nJRZNTeG6kMIAyVyquaChA_X-Z4Nu20";
 // ===========================================================================
 
 const configured = !SUPABASE_URL.startsWith("PASTE");
-const sb = configured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+let sb = null;
+try { if (configured) sb = supabase.createClient(SUPABASE_URL.trim(), SUPABASE_ANON_KEY.trim()); }
+catch (e) { window.addEventListener("DOMContentLoaded", () => { document.querySelector("#app").innerHTML = '<div class="setup"><strong>Could not start.</strong> ' + String(e.message || e) + '</div>'; }); }
 let data = {dests: [], cars: [], riders: []};
 let hostPw = null;                 // kept in memory only; checked by the server on every host action
 const forms = {};                  // typed-in values per destination, survive re-rendering
@@ -101,11 +103,13 @@ async function load() {
     $("#app").innerHTML = '<div class="setup"><strong>Almost there.</strong> Open index.html and paste your Supabase project URL and anon key at the top of the script.</div>';
     return;
   }
-  const [d, c, r] = await Promise.all([
+  if (!sb) { $("#app").innerHTML = '<div class="setup"><strong>Supabase library did not load.</strong> Check your internet connection or ad blocker, then reload.</div>'; return; }
+  let d, c, r;
+  try { [d, c, r] = await Promise.all([
     sb.from("destinations").select("*").order("created_at"),
     sb.from("cars").select("*").order("created_at"),
     sb.from("riders").select("*").order("created_at")
-  ]);
+  ]); } catch (e) { $("#app").innerHTML = '<div class="setup"><strong>Could not reach Supabase.</strong> ' + esc(e.message || e) + '<br>Check that the Project URL is exactly like https://xxxx.supabase.co</div>'; return; }
   const err = d.error || c.error || r.error;
   if (err) { $("#app").innerHTML = '<div class="setup"><strong>Could not load data.</strong> ' + esc(err.message) + '<br>Check that you ran setup.sql and pasted the right URL and key.</div>'; return; }
   data = {dests: d.data, cars: c.data, riders: r.data};
