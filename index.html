@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hiking Club Carpools</title>
+<title>Carpools: Hiking Club at UCSD</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
@@ -16,7 +16,7 @@ header{background:var(--pine-d);color:#eef3ef;padding:28px 20px 24px;border-bott
 .wrap{max-width:860px;margin:0 auto}
 header .wrap{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
 h1{font-size:clamp(28px,6vw,44px);font-weight:800}
-header p{margin:6px 0 0;color:#b9cbbf;max-width:46ch}
+header .club-link{display:inline-block;margin-top:6px;color:#dce8df;font-size:14px;text-underline-offset:3px}
 main{padding:22px 16px 60px}
 button{font:inherit;cursor:pointer;border:1px solid var(--pine);background:var(--pine);color:#fff;border-radius:6px;padding:8px 14px;font-weight:600}
 button:hover{background:var(--pine-d)}
@@ -33,11 +33,7 @@ input,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border
 .dest>.head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
 .dest h2{font-size:24px}
 .body{padding:16px 18px}
-.you{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.you input{flex:1 1 150px}
-.driver-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px;padding:10px 12px;background:#e3ebe5;border-radius:8px}
-.driver-row input[type=number]{width:80px}
-.driver-row span{color:var(--rock);font-size:14px;flex:1 1 100%}
+.dest button[data-act=offer]{margin-bottom:14px}
 .car{border:1px solid var(--line);border-left:5px solid var(--pine);border-radius:8px;padding:12px 14px;margin-bottom:12px;background:#fff}
 .car.full{border-left-color:var(--rock)}
 .car .top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
@@ -57,7 +53,6 @@ li .ph{color:var(--rock);font-size:14px;margin-left:8px}
 .empty{color:var(--rock);padding:10px 0}
 .hostbar{background:var(--sun-bg);border:1px solid var(--sun);border-radius:8px;padding:12px 14px;margin-bottom:22px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .hostbar strong{margin-right:auto}
-.hostbar input{flex:1 1 200px}
 #msg{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;max-width:90vw;display:none;z-index:9}
 #msg.err{background:var(--bad)}
 .setup{background:#fff;border:2px solid var(--bad);border-radius:8px;padding:16px}
@@ -76,6 +71,7 @@ dialog::backdrop{background:#14251bb0}
 dialog h2{margin-bottom:16px}
 .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(185px,100%),1fr));gap:12px}
 .fields label{display:grid;gap:4px;align-content:start;font-size:14px;font-weight:600}
+.fields label[hidden]{display:none}
 .fields input,.fields textarea{width:100%;font-size:16px;font-weight:400}
 .wide{grid-column:1/-1}
 dialog textarea{resize:vertical}
@@ -86,7 +82,7 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
 </head>
 <body>
 <header><div class="wrap">
-  <div><h1>Hiking Club Carpools</h1><p>Offer a ride, find a seat, or sign up to meet at the trailhead.</p></div>
+  <div><h1>Carpools: Hiking Club at UCSD</h1><a class="club-link" href="https://www.instagram.com/hikingclubatucsd/">Instagram @hikingclubatucsd</a></div>
   <button class="ghost" id="hostBtn" data-act="hostToggle">Host login</button>
 </div></header>
 <main class="wrap">
@@ -110,7 +106,7 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
       <label class="wide">Trailhead directions<textarea name="trailhead" rows="2" placeholder="See AllTrails link"></textarea></label>
     </div>
     <p class="form-error" role="alert"></p>
-    <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button>Save hike</button></div>
+    <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button type="submit">Save hike</button></div>
   </form>
 </dialog>
 <dialog id="seatEditor" aria-labelledby="seatEditorTitle">
@@ -121,23 +117,24 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
     <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button>Save seats</button></div>
   </form>
 </dialog>
-<dialog id="attendeeSignup" aria-labelledby="attendeeTitle">
-  <form><h2 id="attendeeTitle">Sign up without a carpool</h2>
+<dialog id="signup" aria-labelledby="signupTitle">
+  <form><h2 id="signupTitle">Sign up</h2>
     <p class="context"></p>
     <div class="fields">
       <label>Your name<input name="name" required maxlength="60" autocomplete="name"></label>
       <label>Your phone number<input name="phone" type="tel" required maxlength="30" autocomplete="tel"></label>
+      <label class="wide" hidden>Passenger seats (excluding you)<input name="seats" type="number" min="1" max="20" step="1" required disabled></label>
     </div>
     <p class="form-error" role="alert"></p>
-    <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button>Sign up</button></div>
+    <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button type="submit">Sign up</button></div>
   </form>
 </dialog>
-<dialog id="kickPassenger" aria-labelledby="kickTitle">
-  <form><h2 id="kickTitle">Remove passenger?</h2>
+<dialog id="removeFromRoster" aria-labelledby="removalTitle">
+  <form><h2 id="removalTitle">Remove from roster?</h2>
     <p class="context"></p>
-    <label><input type="checkbox" name="close_seat"> Also decrease this car’s capacity by one seat</label>
+    <label hidden><input type="checkbox" name="close_seat" disabled> Also decrease this car’s capacity by one seat</label>
     <p class="form-error" role="alert"></p>
-    <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="danger">Remove passenger</button></div>
+    <div class="acts"><button type="button" class="ghost" data-act="cancel" autofocus>Cancel</button><button class="danger">Remove</button></div>
   </form>
 </dialog>
 
@@ -192,10 +189,9 @@ async function load() {
 function render() {
   $("#hostBtn").textContent = hostPw ? "Log out of host" : "Host login";
   $("#host").innerHTML = hostPw ? `<div class="hostbar"><strong>Host mode</strong>
-    <input id="newDest" placeholder="New destination, e.g. Cowles Mountain, Sat 8am" maxlength="80">
-    <button data-act="addDest">Add destination</button>
+    <button data-act="addDest">Add hike</button>
     ${data.hikeFeatures ? "" : "<span>Run migrations/001_hike_details.sql in Supabase to enable hike editing and non-carpooling signups.</span>"}</div>` : "";
-  if (!data.dests.length) { $("#app").innerHTML = '<p class="empty">No trips yet. ' + (hostPw ? "Add a destination above." : "Check back once the host adds one.") + '</p>'; return; }
+  if (!data.dests.length) { $("#app").innerHTML = '<p class="empty">No trips yet. ' + (hostPw ? "Add a hike above." : "Check back once the host adds one.") + '</p>'; return; }
   $("#app").innerHTML = data.dests.map(destHTML).join("");
 }
 
@@ -226,23 +222,14 @@ function destHTML(d) {
   const attendees = data.attendees.filter(a => a.destination_id === d.id);
   const subtitle = d.passenger_fee && `Cost per passenger: ${d.passenger_fee}`;
   const open = cars.reduce((n, c) => n + Math.max(0, c.seats - riders.filter(r => r.car_id === c.id).length), 0);
-  const v = f(d.id);
   const riderRow = (r, pos) => `<li class="${r.highlighted ? "hl" : ""}"><span>${pos ? pos + ". " : ""}${esc(r.name)}<span class="ph">${esc(r.phone)}</span></span>
-    ${hostPw ? `<span class="acts"><button class="ghost small" data-act="hl" data-id="${r.id}">${r.highlighted ? "Unhighlight" : "Highlight"}</button><button class="danger small" data-act="kick" data-id="${r.id}">Kick</button></span>` : ""}</li>`;
+    ${hostPw ? `<span class="acts"><button class="ghost small" data-act="hl" data-id="${r.id}">${r.highlighted ? "Unhighlight" : "Highlight"}</button><button class="danger small" data-act="kick" data-id="${r.id}">Remove</button></span>` : ""}</li>`;
   return `<section class="dest" data-dest="${d.id}">
     <div class="head"><div><h2>${esc(d.name)}</h2>${subtitle ? `<p>${esc(subtitle)}</p>` : ""}</div>
       ${hostPw ? `<div class="acts">${data.hikeFeatures ? '<button class="ghost small" data-act="editHike">Edit hike</button>' : ""}<button class="danger small" data-act="delDest" data-id="${d.id}">Delete destination</button></div>` : ""}</div>
     <div class="body">
       ${hikeInfo(d)}
-      <div class="you">
-        <input data-field="name" placeholder="Your name" value="${esc(v.name)}" maxlength="60" autocomplete="name">
-        <input data-field="phone" type="tel" placeholder="Your phone number" value="${esc(v.phone)}" maxlength="30" autocomplete="tel">
-      </div>
-      <div class="driver-row">
-        <label>Seats in my car <input data-field="seats" type="number" min="1" max="20" value="${esc(v.seats)}"></label>
-        <button data-act="offer">I’m driving</button>
-        <span>Seats for passengers, not counting you.</span>
-      </div>
+      <button data-act="offer">I’m driving</button>
       ${cars.length ? cars.map(c => {
         const rs = riders.filter(r => r.car_id === c.id), left = c.seats - rs.length;
         return `<div class="car ${left <= 0 ? "full" : ""}">
@@ -262,11 +249,6 @@ function destHTML(d) {
     </div></section>`;
 }
 
-function who(destEl) {
-  const v = f(destEl.dataset.dest);
-  if (!v.name.trim() || !v.phone.trim()) { toast("Enter your name and phone number first.", true); return null; }
-  return v;
-}
 async function call(fn, args, ok) {
   const {error} = await sb.rpc(fn, args);
   if (error) toast(error.message, true); else if (ok) toast(ok);
@@ -286,6 +268,38 @@ function openForm(selector, id, values, context) {
   return form;
 }
 
+const signupActions = {
+  offer: {title: "Offer a ride", fn: "add_car", message: "You’re listed as a driver."},
+  join: {title: "Take a seat", fn: "join_car", message: "Seat taken."},
+  wait: {title: "Join the waitlist", fn: "join_waitlist", message: "You’re on the waitlist."},
+  registerAttendee: {title: "Sign up without a carpool", fn: "register_non_carpooling", message: "You’re on the non-carpooling roster."}
+};
+
+function openSignup(action, dest, carId) {
+  const {title} = signupActions[action];
+  const car = action === "join" && data.cars.find(c => c.id === carId);
+  const seats = $("#signup [name=seats]");
+  seats.disabled = action !== "offer";
+  seats.parentElement.hidden = seats.disabled;
+  $("#signupTitle").textContent = title;
+  $("#signup button[type=submit]").textContent = action === "registerAttendee" ? "Sign up" : title;
+  const form = openForm("#signup", carId || dest.id, f(dest.id), car ? `${dest.name} · ${car.driver_name}’s car` : dest.name);
+  form.dataset.action = action;
+  form.dataset.dest = dest.id;
+}
+
+// Each confirmation describes its own consequences and uses the same Cancel / Remove controls.
+let pendingRemoval;
+function confirmRemoval(title, context, fn, args, carToShrink) {
+  pendingRemoval = {fn, args, carToShrink};
+  $("#removalTitle").textContent = title;
+  const checkbox = $("#removeFromRoster [name=close_seat]");
+  checkbox.disabled = !carToShrink;
+  checkbox.parentElement.hidden = checkbox.disabled;
+  $("#removeFromRoster button.danger").textContent = fn === "host_delete_destination" ? "Delete destination" : "Remove";
+  openForm("#removeFromRoster", "", {}, context);
+}
+
 document.addEventListener("submit", async e => {
   const form = e.target, dialog = form.closest("dialog");
   if (!dialog) return;
@@ -295,26 +309,40 @@ document.addEventListener("submit", async e => {
   let fn, args, message;
   switch (dialog.id) {
     case "hikeEditor":
-      fn = "host_edit_hike";
-      args = {p_pw: hostPw, p_dest: id};
+      fn = id ? "host_edit_hike" : "host_add_destination";
+      args = {p_pw: hostPw};
+      if (id) args.p_dest = id;
       for (const [key, value] of Object.entries(values)) args["p_" + key] = value.trim();
-      message = "Hike updated.";
+      if (!id) {
+        args.p_name ||= "Untitled hike";
+        // The original name-only function also works before the latest migration.
+        if (Object.entries(values).every(([key, value]) => key === "name" || !value.trim()))
+          args = {p_pw: hostPw, p_name: args.p_name};
+      }
+      message = id ? "Hike updated." : "Hike added.";
       break;
     case "seatEditor":
       fn = "host_set_car_seats";
       args = {p_pw: hostPw, p_car: id, p_seats: Number(values.seats)};
       message = "Seat count updated.";
       break;
-    case "attendeeSignup":
-      fn = "register_non_carpooling";
-      args = {p_dest: id, p_name: values.name.trim(), p_phone: values.phone.trim()};
-      message = "You’re on the non-carpooling roster.";
+    case "signup": {
+      const action = form.dataset.action;
+      ({fn, message} = signupActions[action]);
+      args = {p_name: values.name.trim(), p_phone: values.phone.trim()};
+      if (action === "join") args.p_car = id;
+      else args.p_dest = id;
+      if (action === "offer") args.p_seats = Number(values.seats);
       break;
-    case "kickPassenger":
-      fn = values.close_seat ? "host_kick_and_close_seat" : "host_kick";
-      args = {p_pw: hostPw, p_rider: id};
-      if (values.close_seat) args.p_car = form.dataset.car;
-      message = "Passenger removed.";
+    }
+    case "removeFromRoster":
+      fn = pendingRemoval.fn;
+      args = {p_pw: hostPw, ...pendingRemoval.args};
+      if (values.close_seat && pendingRemoval.carToShrink) {
+        fn = "host_kick_and_close_seat";
+        args.p_car = pendingRemoval.carToShrink;
+      }
+      message = fn === "host_delete_destination" ? "Destination deleted." : "Removed from the roster.";
       break;
     default: return;
   }
@@ -323,6 +351,8 @@ document.addEventListener("submit", async e => {
   buttons.forEach(b => b.disabled = true);
   try {
     const {error} = await sb.rpc(fn, args);
+    if (error && fn === "host_add_destination" && ["PGRST202", "42883"].includes(error.code))
+      throw new Error("Run the updated migrations/001_hike_details.sql to save a new hike with details.");
     if (error) throw error;
     dialog.close();
     toast(message);
@@ -338,9 +368,10 @@ document.querySelectorAll("dialog").forEach(dialog => dialog.addEventListener("c
   if (dialog.querySelector("form").dataset.saving) e.preventDefault();
 }));
 
-document.addEventListener("input", e => {
-  const el = e.target, sec = el.closest("[data-dest]");
-  if (sec && el.dataset.field) { f(sec.dataset.dest)[el.dataset.field] = el.value; saveForms(); }
+$("#signup").addEventListener("input", e => {
+  const field = e.target;
+  f(field.form.dataset.dest)[field.name] = field.value;
+  saveForms();
 });
 
 document.addEventListener("click", async e => {
@@ -348,14 +379,18 @@ document.addEventListener("click", async e => {
   const act = b.dataset.act, id = b.dataset.id, sec = b.closest("[data-dest]");
   if (act === "cancel") return b.closest("dialog").close();
   const dest = sec && data.dests.find(d => d.id === sec.dataset.dest);
-  if (act === "editHike") {
-    const form = openForm("#hikeEditor", dest.id, dest);
-    // An older database can still use the original edit function during rollout.
-    for (const name of ["meeting_location", "trailhead_eta"]) {
-      form.elements[name].disabled = !(name in dest);
+  if (act === "editHike" || act === "addDest") {
+    const creating = act === "addDest";
+    $("#hikeEditorTitle").textContent = creating ? "Add hike" : "Edit hike";
+    $("#hikeEditor button[type=submit]").textContent = creating ? "Add hike" : "Save hike";
+    const form = openForm("#hikeEditor", creating ? "" : dest.id, dest || {});
+    form.elements.name.required = !creating;
+    form.elements.name.placeholder = creating ? "Untitled hike" : "Fletcher Point";
+    for (const field of form.querySelectorAll("[name]")) {
+      field.disabled = creating ? field.name !== "name" && !data.hikeFeatures : !(field.name in dest);
     }
     if (form.elements.meeting_location.disabled) {
-      form.querySelector(".form-error").textContent = "Run the updated migrations/001_hike_details.sql to enable meeting location and trailhead ETA.";
+      form.querySelector(".form-error").textContent = "Run the updated migrations/001_hike_details.sql to enable all hike details.";
     }
     return;
   }
@@ -364,11 +399,10 @@ document.addEventListener("click", async e => {
     const occupied = data.riders.filter(r => r.car_id === id).length;
     return openForm("#seatEditor", id, car, `${car.driver_name}’s car · ${occupied} occupied of ${car.seats} passenger seats`);
   }
-  if (act === "registerAttendee") return openForm("#attendeeSignup", dest.id, f(dest.id), dest.name);
+  if (Object.hasOwn(signupActions, act)) return openSignup(act, dest, id);
   if (act === "removeAttendee") {
-    if (confirm("Remove this attendee from the non-carpooling roster?"))
-      return call("host_remove_attendee", {p_pw: hostPw, p_attendee: id}, "Attendee removed.");
-    return;
+    const attendee = data.attendees.find(a => a.id === id);
+    return confirmRemoval("Remove attendee?", `Remove ${attendee.name} from the non-carpooling roster for ${dest.name}?`, "host_remove_attendee", {p_attendee: id});
   }
   if (act === "hostToggle") {
     if (hostPw) { hostPw = null; return render(); }
@@ -377,28 +411,17 @@ document.addEventListener("click", async e => {
     if (error || !okLogin) return toast("Wrong password.", true);
     hostPw = pw; return render();
   }
-  if (act === "offer") { const v = who(sec); if (!v) return;
-    return call("add_car", {p_dest: sec.dataset.dest, p_name: v.name, p_phone: v.phone, p_seats: parseInt(v.seats, 10) || 1}, "You’re listed as a driver."); }
-  if (act === "join") { const v = who(sec); if (!v) return;
-    return call("join_car", {p_car: id, p_name: v.name, p_phone: v.phone}, "Seat taken."); }
-  if (act === "wait") { const v = who(sec); if (!v) return;
-    return call("join_waitlist", {p_dest: sec.dataset.dest, p_name: v.name, p_phone: v.phone}, "You’re on the waitlist."); }
-  if (act === "addDest") { const n = $("#newDest").value.trim(); if (!n) return toast("Enter a destination name.", true);
-    return call("host_add_destination", {p_pw: hostPw, p_name: n}, "Destination added."); }
-  if (act === "delDest") { if (!confirm("Delete this destination and everyone signed up for it?")) return;
-    return call("host_delete_destination", {p_pw: hostPw, p_id: id}, "Destination deleted."); }
+  if (act === "delDest") return confirmRemoval("Delete destination?", `Delete ${dest.name} and all its cars, passengers, waitlisted riders, and non-carpooling attendees?`, "host_delete_destination", {p_id: id});
   if (act === "hl") return call("host_toggle_highlight", {p_pw: hostPw, p_rider: id});
   if (act === "kick") {
     const rider = data.riders.find(r => r.id === id), car = data.cars.find(c => c.id === rider.car_id);
-    if (data.hikeFeatures && car && car.seats > 1) {
-      const form = openForm("#kickPassenger", id, {}, `Remove ${rider.name} from ${car.driver_name}’s car? Keeping the seat open lets the next waitlisted passenger take it.`);
-      form.dataset.car = car.id;
-      return;
-    }
-    if (!confirm("Remove this person from the roster?")) return;
-    return call("host_kick", {p_pw: hostPw, p_rider: id}, "Removed."); }
-  if (act === "delCar") { if (!confirm("Remove this car? Its passengers move to open seats or the waitlist.")) return;
-    return call("host_delete_car", {p_pw: hostPw, p_car: id}, "Car removed."); }
+    const context = car ? `Remove ${rider.name} from ${car.driver_name}’s car? The next waitlisted rider can take the open seat.` : `Remove ${rider.name} from the waitlist for ${dest.name}?`;
+    return confirmRemoval("Remove passenger?", context, "host_kick", {p_rider: id}, data.hikeFeatures && car && car.seats > 1 && car.id);
+  }
+  if (act === "delCar") {
+    const car = data.cars.find(c => c.id === id);
+    return confirmRemoval("Remove car?", `Remove ${car.driver_name}’s car? Its passengers move to open seats or the waitlist.`, "host_delete_car", {p_car: id});
+  }
 });
 
 load();

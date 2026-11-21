@@ -76,6 +76,22 @@ begin
     where id = p_dest;
 end $$;
 
+-- Add the hike and its details together, using the same validation as the editor.
+create or replace function public.host_add_destination(
+  p_pw text, p_name text, p_meeting_time text, p_passenger_fee text,
+  p_distance text, p_elevation_gain text, p_difficulty text, p_campus_return text,
+  p_trail_url text, p_trailhead text, p_meeting_location text, p_trailhead_eta text
+) returns void language plpgsql security definer set search_path = public as $$
+declare new_id uuid;
+begin
+  perform assert_host(p_pw);
+  p_name := coalesce(nullif(trim(p_name), ''), 'Untitled hike');
+  insert into destinations (name) values (p_name) returning id into new_id;
+  perform host_edit_hike(p_pw, new_id, p_name, p_meeting_time, p_passenger_fee,
+    p_distance, p_elevation_gain, p_difficulty, p_campus_return, p_trail_url,
+    p_trailhead, p_meeting_location, p_trailhead_eta);
+end $$;
+
 -- Serialize capacity changes, seat claims and waitlist promotions for the same hike.
 -- A second request sees the first one's committed seats and passenger list.
 create or replace function public.lock_carpool(p_dest uuid) returns void
@@ -192,6 +208,7 @@ grant execute on function public.register_non_carpooling(uuid, text, text),
   public.host_remove_attendee(text, uuid),
   public.host_edit_hike(text, uuid, text, text, text, text, text, text, text, text, text),
   public.host_edit_hike(text, uuid, text, text, text, text, text, text, text, text, text, text, text),
+  public.host_add_destination(text, text, text, text, text, text, text, text, text, text, text, text),
   public.host_set_car_seats(text, uuid, int),
   public.host_kick_and_close_seat(text, uuid, uuid) to anon, authenticated;
 
