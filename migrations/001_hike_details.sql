@@ -11,9 +11,16 @@ alter table public.destinations
   add column if not exists distance text not null default '',
   add column if not exists elevation_gain text not null default '',
   add column if not exists difficulty text not null default '',
+  add column if not exists what_to_bring text not null default '',
   add column if not exists campus_return text not null default '',
   add column if not exists trail_url text not null default '',
   add column if not exists trailhead text not null default '';
+
+-- Snapshot the previously advertised fee for existing cars. An empty fee is distinct from "Waived".
+alter table public.cars add column if not exists passenger_fee text;
+update public.cars c set passenger_fee = d.passenger_fee
+  from public.destinations d where d.id = c.destination_id and c.passenger_fee is null;
+alter table public.cars alter column passenger_fee set default '', alter column passenger_fee set not null;
 
 create table if not exists public.non_carpooling_attendees (
   id uuid primary key default gen_random_uuid(),
@@ -63,24 +70,29 @@ begin
   if not found then raise exception 'That hike no longer exists.'; end if;
 end $$;
 
--- Older pages still call the original signature and preserve these two fields.
+-- Replace the earlier pickup/ETA signature with one that also accepts optional packing notes.
+drop function if exists public.host_edit_hike(text, uuid, text, text, text, text, text, text, text, text, text, text, text);
 create or replace function public.host_edit_hike(
   p_pw text, p_dest uuid, p_name text, p_meeting_time text, p_passenger_fee text,
   p_distance text, p_elevation_gain text, p_difficulty text, p_campus_return text,
-  p_trail_url text, p_trailhead text, p_meeting_location text, p_trailhead_eta text
+  p_trail_url text, p_trailhead text, p_meeting_location text, p_trailhead_eta text,
+  p_what_to_bring text default null
 ) returns void language plpgsql security definer set search_path = public as $$
 begin
   perform host_edit_hike(p_pw, p_dest, p_name, p_meeting_time, p_passenger_fee,
     p_distance, p_elevation_gain, p_difficulty, p_campus_return, p_trail_url, p_trailhead);
-  update destinations set meeting_location = trim(p_meeting_location), trailhead_eta = trim(p_trailhead_eta)
+  update destinations set meeting_location = trim(p_meeting_location), trailhead_eta = trim(p_trailhead_eta),
+    what_to_bring = coalesce(trim(p_what_to_bring), what_to_bring)
     where id = p_dest;
 end $$;
 
 -- Add the hike and its details together, using the same validation as the editor.
+drop function if exists public.host_add_destination(text, text, text, text, text, text, text, text, text, text, text, text);
 create or replace function public.host_add_destination(
   p_pw text, p_name text, p_meeting_time text, p_passenger_fee text,
   p_distance text, p_elevation_gain text, p_difficulty text, p_campus_return text,
-  p_trail_url text, p_trailhead text, p_meeting_location text, p_trailhead_eta text
+  p_trail_url text, p_trailhead text, p_meeting_location text, p_trailhead_eta text,
+  p_what_to_bring text default ''
 ) returns void language plpgsql security definer set search_path = public as $$
 declare new_id uuid;
 begin
@@ -89,7 +101,7 @@ begin
   insert into destinations (name) values (p_name) returning id into new_id;
   perform host_edit_hike(p_pw, new_id, p_name, p_meeting_time, p_passenger_fee,
     p_distance, p_elevation_gain, p_difficulty, p_campus_return, p_trail_url,
-    p_trailhead, p_meeting_location, p_trailhead_eta);
+    p_trailhead, p_meeting_location, p_trailhead_eta, p_what_to_bring);
 end $$;
 
 -- Serialize capacity changes, seat claims and waitlist promotions for the same hike.
@@ -139,14 +151,29 @@ begin
   perform fill_waitlist(d);
 end $$;
 
-create or replace function public.add_car(p_dest uuid, p_name text, p_phone text, p_seats int) returns void
+create or replace function public.add_car(p_dest uuid, p_name text, p_phone text, p_seats int, p_passenger_fee text) returns void
 language plpgsql security definer set search_path = public as $$
 begin
   perform lock_carpool(p_dest);
   if length(trim(p_name)) = 0 or length(trim(p_phone)) = 0 then raise exception 'Name and phone are required'; end if;
-  insert into cars (destination_id, driver_name, phone, seats)
-    values (p_dest, trim(p_name), trim(p_phone), p_seats);
+  insert into cars (destination_id, driver_name, phone, seats, passenger_fee)
+    values (p_dest, trim(p_name), trim(p_phone), p_seats,
+      coalesce(trim(p_passenger_fee), (select passenger_fee from destinations where id = p_dest)));
   perform fill_waitlist(p_dest);
+end $$;
+
+-- Drivers using an older page keep the hike's recommendation as their initial fee.
+create or replace function public.add_car(p_dest uuid, p_name text, p_phone text, p_seats int) returns void
+language sql security definer set search_path = public as $$
+  select add_car(p_dest, p_name, p_phone, p_seats, null);
+$$;
+
+create or replace function public.host_set_car_fee(p_pw text, p_car uuid, p_passenger_fee text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform assert_host(p_pw);
+  update cars set passenger_fee = coalesce(trim(p_passenger_fee), '') where id = p_car;
+  if not found then raise exception 'That car no longer exists.'; end if;
 end $$;
 
 create or replace function public.join_car(p_car uuid, p_name text, p_phone text) returns void
@@ -207,8 +234,10 @@ end $$;
 grant execute on function public.register_non_carpooling(uuid, text, text),
   public.host_remove_attendee(text, uuid),
   public.host_edit_hike(text, uuid, text, text, text, text, text, text, text, text, text),
-  public.host_edit_hike(text, uuid, text, text, text, text, text, text, text, text, text, text, text),
-  public.host_add_destination(text, text, text, text, text, text, text, text, text, text, text, text),
+  public.host_edit_hike(text, uuid, text, text, text, text, text, text, text, text, text, text, text, text),
+  public.host_add_destination(text, text, text, text, text, text, text, text, text, text, text, text, text),
+  public.add_car(uuid, text, text, int, text),
+  public.host_set_car_fee(text, uuid, text),
   public.host_set_car_seats(text, uuid, int),
   public.host_kick_and_close_seat(text, uuid, uuid) to anon, authenticated;
 
