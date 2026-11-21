@@ -34,15 +34,34 @@ drop policy if exists "read non-carpooling attendees" on public.non_carpooling_a
 create policy "read non-carpooling attendees" on public.non_carpooling_attendees for select using (true);
 grant select on public.non_carpooling_attendees to anon, authenticated;
 
-create or replace function public.register_non_carpooling(p_dest uuid, p_name text, p_phone text)
-returns void language plpgsql security definer set search_path = public as $$
+-- A host may leave signup details unknown. Public writes still require them in the signup functions.
+alter table public.cars alter column driver_name drop not null, alter column phone drop not null, alter column seats drop not null;
+alter table public.riders alter column name drop not null, alter column phone drop not null;
+alter table public.non_carpooling_attendees alter column name drop not null, alter column phone drop not null;
+
+create or replace function public.check_signup_contact(p_pw text, p_name text, p_phone text)
+returns void language plpgsql set search_path = public as $$
 begin
-  if coalesce(trim(p_name), '') = '' or coalesce(trim(p_phone), '') = '' then
+  if p_pw is not null then
+    perform assert_host(p_pw);
+  elsif coalesce(p_name, '') !~ '[^[:space:]]' or coalesce(p_phone, '') !~ '[^[:space:]]' then
     raise exception 'Name and phone number are required.';
   end if;
-  insert into non_carpooling_attendees (destination_id, name, phone)
-    values (p_dest, trim(p_name), trim(p_phone));
 end $$;
+revoke execute on function public.check_signup_contact(text, text, text) from public, anon, authenticated;
+
+create or replace function public.register_non_carpooling(p_dest uuid, p_name text, p_phone text, p_pw text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  perform check_signup_contact(p_pw, p_name, p_phone);
+  insert into non_carpooling_attendees (destination_id, name, phone)
+    values (p_dest, nullif(trim(p_name), ''), nullif(trim(p_phone), ''));
+end $$;
+
+create or replace function public.register_non_carpooling(p_dest uuid, p_name text, p_phone text)
+returns void language sql security definer set search_path = public as $$
+  select register_non_carpooling(p_dest, p_name, p_phone, null);
+$$;
 
 create or replace function public.host_remove_attendee(p_pw text, p_attendee uuid)
 returns void language plpgsql security definer set search_path = public as $$
@@ -151,21 +170,28 @@ begin
   perform fill_waitlist(d);
 end $$;
 
-create or replace function public.add_car(p_dest uuid, p_name text, p_phone text, p_seats int, p_passenger_fee text) returns void
+create or replace function public.add_car(p_dest uuid, p_name text, p_phone text, p_seats int, p_passenger_fee text, p_pw text) returns void
 language plpgsql security definer set search_path = public as $$
 begin
+  perform check_signup_contact(p_pw, p_name, p_phone);
+  if p_pw is null and (p_seats is null or coalesce(p_passenger_fee, '') !~ '[^[:space:]]') then
+    raise exception 'Passenger seats and fee are required. Enter 0 for a free ride.';
+  end if;
   perform lock_carpool(p_dest);
-  if length(trim(p_name)) = 0 or length(trim(p_phone)) = 0 then raise exception 'Name and phone are required'; end if;
   insert into cars (destination_id, driver_name, phone, seats, passenger_fee)
-    values (p_dest, trim(p_name), trim(p_phone), p_seats,
-      coalesce(trim(p_passenger_fee), (select passenger_fee from destinations where id = p_dest)));
+    values (p_dest, nullif(trim(p_name), ''), nullif(trim(p_phone), ''), p_seats, coalesce(trim(p_passenger_fee), ''));
   perform fill_waitlist(p_dest);
 end $$;
+
+create or replace function public.add_car(p_dest uuid, p_name text, p_phone text, p_seats int, p_passenger_fee text) returns void
+language sql security definer set search_path = public as $$
+  select add_car(p_dest, p_name, p_phone, p_seats, p_passenger_fee, null);
+$$;
 
 -- Drivers using an older page keep the hike's recommendation as their initial fee.
 create or replace function public.add_car(p_dest uuid, p_name text, p_phone text, p_seats int) returns void
 language sql security definer set search_path = public as $$
-  select add_car(p_dest, p_name, p_phone, p_seats, null);
+  select add_car(p_dest, p_name, p_phone, p_seats, (select passenger_fee from destinations where id = p_dest));
 $$;
 
 create or replace function public.host_set_car_fee(p_pw text, p_car uuid, p_passenger_fee text) returns void
@@ -176,26 +202,32 @@ begin
   if not found then raise exception 'That car no longer exists.'; end if;
 end $$;
 
-create or replace function public.join_car(p_car uuid, p_name text, p_phone text) returns void
+create or replace function public.join_car(p_car uuid, p_name text, p_phone text, p_pw text) returns void
 language plpgsql security definer set search_path = public as $$
 declare c cars%rowtype;
 begin
+  perform check_signup_contact(p_pw, p_name, p_phone);
   perform lock_carpool((select destination_id from cars where id = p_car));
-  if length(trim(p_name)) = 0 or length(trim(p_phone)) = 0 then raise exception 'Name and phone are required'; end if;
   select * into c from cars where id = p_car for update;
   if not found then raise exception 'That car no longer exists'; end if;
+  if c.seats is null then raise exception 'The host must set the seat count first.'; end if;
   if (select count(*) from riders where car_id = c.id) >= c.seats then
     raise exception 'That car is full';
   end if;
   insert into riders (destination_id, car_id, name, phone)
-    values (c.destination_id, c.id, trim(p_name), trim(p_phone));
+    values (c.destination_id, c.id, nullif(trim(p_name), ''), nullif(trim(p_phone), ''));
 end $$;
+
+create or replace function public.join_car(p_car uuid, p_name text, p_phone text) returns void
+language sql security definer set search_path = public as $$
+  select join_car(p_car, p_name, p_phone, null);
+$$;
 
 create or replace function public.join_waitlist(p_dest uuid, p_name text, p_phone text) returns void
 language plpgsql security definer set search_path = public as $$
 begin
   perform lock_carpool(p_dest);
-  if length(trim(p_name)) = 0 or length(trim(p_phone)) = 0 then raise exception 'Name and phone are required'; end if;
+  perform check_signup_contact(null, p_name, p_phone);
   if not exists (select 1 from cars where destination_id = p_dest) then
     raise exception 'No drivers yet. Wait for a driver to sign up';
   end if;
@@ -232,6 +264,9 @@ begin
 end $$;
 
 grant execute on function public.register_non_carpooling(uuid, text, text),
+  public.register_non_carpooling(uuid, text, text, text),
+  public.join_car(uuid, text, text, text),
+  public.add_car(uuid, text, text, int, text, text),
   public.host_remove_attendee(text, uuid),
   public.host_edit_hike(text, uuid, text, text, text, text, text, text, text, text, text),
   public.host_edit_hike(text, uuid, text, text, text, text, text, text, text, text, text, text, text, text),

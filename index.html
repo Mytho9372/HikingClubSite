@@ -135,6 +135,7 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
 <dialog id="signup" aria-labelledby="signupTitle">
   <form><h2 id="signupTitle">Sign up</h2>
     <p class="context"></p>
+    <p class="requirements"></p>
     <div class="fields">
       <label>Your name<input name="name" required maxlength="60" autocomplete="name"></label>
       <label>Your phone number<input name="phone" type="tel" required maxlength="30" autocomplete="tel"></label>
@@ -209,7 +210,13 @@ async function load() {
   const needsMigration = ["PGRST205", "42P01"].includes(a.error?.code);
   const err = d.error || c.error || r.error || (!needsMigration && a.error);
   if (err) { $("#app").innerHTML = '<div class="setup"><strong>Could not load data.</strong> ' + esc(err.message) + '</div>'; return; }
-  data = {dests: d.data, cars: c.data, riders: r.data, attendees: a.data || [], hikeFeatures: !needsMigration};
+  data = {
+    dests: d.data,
+    cars: c.data.map(car => ({...car, driver_name: car.driver_name || "Unnamed driver"})),
+    riders: r.data.map(rider => ({...rider, name: rider.name || "Unnamed passenger"})),
+    attendees: (a.data || []).map(attendee => ({...attendee, name: attendee.name || "Unnamed attendee"})),
+    hikeFeatures: !needsMigration
+  };
   render();
 }
 
@@ -262,7 +269,7 @@ function destHTML(d) {
         const rs = riders.filter(r => r.car_id === c.id), left = c.seats - rs.length;
         return `<div class="car ${left <= 0 ? "full" : ""}">
           <div class="top"><div><span class="who">${esc(c.driver_name)}</span> <span class="meta">${esc(c.phone)}</span></div>
-          <span class="seats">${left > 0 ? left + " of " + c.seats + " seats open" : "Full"}</span></div>
+          <span class="seats">${c.seats === null ? "Seat count pending" : left > 0 ? left + " of " + c.seats + " seats open" : "Full"}</span></div>
           ${"passenger_fee" in c ? `<p class="car-fee">Fee per passenger: <strong>${esc(displayFee(c.passenger_fee) || "Not specified")}</strong></p>` : ""}
           <ul>${rs.map(r => riderRow(r)).join("")}${left > 0 ? `<li class="open-seat"><span>${left} open ${left === 1 ? "seat" : "seats"}</span><button class="small" data-act="join" data-id="${c.id}">Take a seat</button></li>` : ""}</ul>
           ${hostPw ? `<div class="acts" style="margin-top:8px">${data.hikeFeatures ? `<button class="ghost small" data-act="editSeats" data-id="${c.id}">Edit seats</button>` : ""}${"passenger_fee" in c ? `<button class="ghost small" data-act="editFee" data-id="${c.id}">Edit fee</button>` : ""}<button class="danger small" data-act="delCar" data-id="${c.id}">Remove car</button></div>` : ""}
@@ -329,6 +336,9 @@ function openSignup(action, dest, carId) {
     if ("passenger_fee" in car) context += ` · Fee per passenger: ${displayFee(car.passenger_fee) || "Not specified"}`;
   }
   const form = openForm("#signup", carId || dest.id, {...f(dest.id), passenger_fee: dest.passenger_fee}, context);
+  const hostEntry = Boolean(hostPw) && action !== "wait";
+  for (const input of form.querySelectorAll("input")) input.required = !hostEntry && !input.disabled;
+  form.querySelector(".requirements").textContent = hostEntry ? "Fields are optional in host mode." : "All fields are required.";
   form.dataset.action = action;
   form.dataset.dest = dest.id;
 }
@@ -350,6 +360,11 @@ document.addEventListener("submit", async e => {
   if (!dialog) return;
   e.preventDefault();
   if (form.dataset.saving) return;
+  if (dialog.id === "signup") {
+    form.elements.name.value = form.elements.name.value.trim();
+    form.elements.phone.value = form.elements.phone.value.trim();
+    if (!form.reportValidity()) return;
+  }
   const id = form.dataset.id, values = Object.fromEntries(new FormData(form));
   if ("passenger_fee" in values) {
     const fee = form.elements.passenger_fee;
@@ -385,10 +400,11 @@ document.addEventListener("submit", async e => {
       const action = form.dataset.action;
       ({fn, message} = signupActions[action]);
       args = {p_name: values.name.trim(), p_phone: values.phone.trim()};
+      if (hostPw && action !== "wait") args.p_pw = hostPw;
       if (action === "join") args.p_car = id;
       else args.p_dest = id;
       if (action === "offer") {
-        args.p_seats = Number(values.seats);
+        args.p_seats = values.seats === "" ? null : Number(values.seats);
         if ("passenger_fee" in values) args.p_passenger_fee = values.passenger_fee.trim();
       }
       break;
@@ -411,6 +427,8 @@ document.addEventListener("submit", async e => {
     const {error} = await sb.rpc(fn, args);
     if (error && fn === "host_add_destination" && ["PGRST202", "42883"].includes(error.code))
       throw new Error("Run the updated migrations/001_hike_details.sql to save a new hike with details.");
+    if (error && dialog.id === "signup" && args.p_pw && ["PGRST202", "42883"].includes(error.code))
+      throw new Error("Run the updated migrations/001_hike_details.sql to enable host signups with optional fields.");
     if (error) throw error;
     dialog.close();
     toast(message);
@@ -467,7 +485,8 @@ document.addEventListener("click", async e => {
   if (act === "editSeats") {
     const car = data.cars.find(c => c.id === id);
     const occupied = data.riders.filter(r => r.car_id === id).length;
-    return openForm("#seatEditor", id, car, `${car.driver_name}’s car · ${occupied} occupied of ${car.seats} passenger seats`);
+    const status = car.seats === null ? "Seat count pending" : `${occupied} occupied of ${car.seats} passenger seats`;
+    return openForm("#seatEditor", id, car, `${car.driver_name}’s car · ${status}`);
   }
   if (act === "editFee") {
     const car = data.cars.find(c => c.id === id);
