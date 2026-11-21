@@ -27,7 +27,7 @@ header button.ghost:hover{background:#25503b}
 button.danger{background:transparent;color:var(--bad);border-color:var(--bad)}
 button.danger:hover{background:#f6e3e0}
 button.small{padding:3px 9px;font-size:14px}
-input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);min-width:0}
+input,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);min-width:0}
 :focus-visible{outline:3px solid var(--sun);outline-offset:2px}
 .dest{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:22px;overflow:hidden}
 .dest>.head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
@@ -61,11 +61,32 @@ li .ph{color:var(--rock);font-size:14px;margin-left:8px}
 #msg{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;max-width:90vw;display:none;z-index:9}
 #msg.err{background:var(--bad)}
 .setup{background:#fff;border:2px solid var(--bad);border-radius:8px;padding:16px}
+.dest>.head,.acts{flex-wrap:wrap}
+.dest h2,.hike-info dd,.head p{overflow-wrap:anywhere}
+.head p{margin:6px 0 0}
+.hike-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:10px 18px;background:#e3ebe5;padding:12px 14px;border-radius:8px;margin:0 0 18px}
+.hike-info dt{font-size:14px;color:var(--rock)}
+.hike-info dd{margin:0;white-space:pre-line}
+a{color:var(--pine)}
+.attendees{border-top:1px solid var(--line);margin-top:18px;padding-top:14px}
+.attendees h3{margin:0 0 8px;font-size:18px}
+.attendees ul{margin:0 0 10px}
+dialog{width:min(520px,calc(100% - 24px));max-height:90vh;padding:20px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px}
+dialog::backdrop{background:#14251bb0}
+dialog h2{margin-bottom:16px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(185px,100%),1fr));gap:12px}
+.fields label{display:grid;gap:4px;align-content:start;font-size:14px;font-weight:600}
+.fields input,.fields textarea{width:100%;font-size:16px;font-weight:400}
+.wide{grid-column:1/-1}
+dialog textarea{resize:vertical}
+dialog .acts{margin-top:16px;justify-content:flex-end}
+.form-error{color:var(--bad);font-weight:600}
+.form-error:empty{display:none}
 </style>
 </head>
 <body>
 <header><div class="wrap">
-  <div><h1>Hiking Club Carpools</h1><p>Offer a ride, grab a seat, or join the waitlist when every car is full.</p></div>
+  <div><h1>Hiking Club Carpools</h1><p>Offer a ride, find a seat, or sign up to meet at the trailhead.</p></div>
   <button class="ghost" id="hostBtn" data-act="hostToggle">Host login</button>
 </div></header>
 <main class="wrap">
@@ -73,6 +94,50 @@ li .ph{color:var(--rock);font-size:14px;margin-left:8px}
   <div id="app"><p class="empty">Loading…</p></div>
 </main>
 <div id="msg" role="status"></div>
+<dialog id="hikeEditor" aria-labelledby="hikeEditorTitle">
+  <form><h2 id="hikeEditorTitle">Edit hike</h2>
+    <div class="fields">
+      <label class="wide">Hike name<input name="name" required placeholder="Fletcher Point"></label>
+      <label>Meeting time<input name="meeting_time" placeholder="Sun 10:30 a.m."></label>
+      <label>Cost per passenger<input name="passenger_fee" placeholder="$4"></label>
+      <label>Length<input name="distance" placeholder="3 miles"></label>
+      <label>Elevation gain<input name="elevation_gain" placeholder="915 ft"></label>
+      <label>Difficulty<input name="difficulty" placeholder="Moderate"></label>
+      <label>Expected campus return<input name="campus_return" placeholder="Around 3 p.m."></label>
+      <label class="wide">Trail link<input name="trail_url" type="url" pattern="https?://.+" placeholder="https://www.alltrails.com/…"></label>
+      <label class="wide">Trailhead directions<textarea name="trailhead" rows="2" placeholder="See AllTrails link"></textarea></label>
+    </div>
+    <p class="form-error" role="alert"></p>
+    <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button>Save hike</button></div>
+  </form>
+</dialog>
+<dialog id="seatEditor" aria-labelledby="seatEditorTitle">
+  <form><h2 id="seatEditorTitle">Edit passenger seats</h2>
+    <p class="context"></p>
+    <div class="fields"><label>Total passenger seats<input name="seats" type="number" min="1" max="20" step="1" required></label></div>
+    <p class="form-error" role="alert"></p>
+    <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button>Save seats</button></div>
+  </form>
+</dialog>
+<dialog id="attendeeSignup" aria-labelledby="attendeeTitle">
+  <form><h2 id="attendeeTitle">Sign up without a carpool</h2>
+    <p class="context"></p>
+    <div class="fields">
+      <label>Your name<input name="name" required maxlength="60" autocomplete="name"></label>
+      <label>Your phone number<input name="phone" type="tel" required maxlength="30" autocomplete="tel"></label>
+    </div>
+    <p class="form-error" role="alert"></p>
+    <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button>Sign up</button></div>
+  </form>
+</dialog>
+<dialog id="kickPassenger" aria-labelledby="kickTitle">
+  <form><h2 id="kickTitle">Remove passenger?</h2>
+    <p class="context"></p>
+    <label><input type="checkbox" name="close_seat"> Also decrease this car’s capacity by one seat</label>
+    <p class="form-error" role="alert"></p>
+    <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="danger">Remove passenger</button></div>
+  </form>
+</dialog>
 
 <script>
 // ====== 1. PASTE YOUR SUPABASE DETAILS HERE (Project Settings -> API) ======
@@ -84,7 +149,8 @@ const configured = !SUPABASE_URL.startsWith("PASTE");
 let sb = null;
 try { if (configured) sb = supabase.createClient(SUPABASE_URL.trim(), SUPABASE_ANON_KEY.trim()); }
 catch (e) { window.addEventListener("DOMContentLoaded", () => { document.querySelector("#app").innerHTML = '<div class="setup"><strong>Could not start.</strong> ' + String(e.message || e) + '</div>'; }); }
-let data = {dests: [], cars: [], riders: []};
+let data = {dests: [], cars: [], riders: [], attendees: [], hikeFeatures: false};
+let loadVersion = 0;
 let hostPw = null;                 // kept in memory only; checked by the server on every host action
 const forms = {};                  // typed-in values per destination, survive re-rendering
 try { Object.assign(forms, JSON.parse(localStorage.getItem("carpoolForms") || "{}")); } catch (e) {}
@@ -99,20 +165,25 @@ function saveForms() { try { localStorage.setItem("carpoolForms", JSON.stringify
 const f = id => forms[id] || (forms[id] = {name: "", phone: "", seats: 3});
 
 async function load() {
+  const version = ++loadVersion;
   if (!configured) {
     $("#app").innerHTML = '<div class="setup"><strong>Almost there.</strong> Open index.html and paste your Supabase project URL and anon key at the top of the script.</div>';
     return;
   }
   if (!sb) { $("#app").innerHTML = '<div class="setup"><strong>Supabase library did not load.</strong> Check your internet connection or ad blocker, then reload.</div>'; return; }
-  let d, c, r;
-  try { [d, c, r] = await Promise.all([
+  let d, c, r, a;
+  try { [d, c, r, a] = await Promise.all([
     sb.from("destinations").select("*").order("created_at"),
     sb.from("cars").select("*").order("created_at"),
-    sb.from("riders").select("*").order("created_at")
-  ]); } catch (e) { $("#app").innerHTML = '<div class="setup"><strong>Could not reach Supabase.</strong> ' + esc(e.message || e) + '<br>Check that the Project URL is exactly like https://xxxx.supabase.co</div>'; return; }
-  const err = d.error || c.error || r.error;
-  if (err) { $("#app").innerHTML = '<div class="setup"><strong>Could not load data.</strong> ' + esc(err.message) + '<br>Check that you ran setup.sql and pasted the right URL and key.</div>'; return; }
-  data = {dests: d.data, cars: c.data, riders: r.data};
+    sb.from("riders").select("*").order("created_at"),
+    sb.from("non_carpooling_attendees").select("*").order("created_at")
+  ]); } catch (e) { if (version === loadVersion) $("#app").innerHTML = '<div class="setup"><strong>Could not reach Supabase.</strong> ' + esc(e.message || e) + '</div>'; return; }
+  if (version !== loadVersion) return;
+  // Keep existing carpools usable if the page is deployed before the database migration.
+  const needsMigration = ["PGRST205", "42P01"].includes(a.error?.code);
+  const err = d.error || c.error || r.error || (!needsMigration && a.error);
+  if (err) { $("#app").innerHTML = '<div class="setup"><strong>Could not load data.</strong> ' + esc(err.message) + '</div>'; return; }
+  data = {dests: d.data, cars: c.data, riders: r.data, attendees: a.data || [], hikeFeatures: !needsMigration};
   render();
 }
 
@@ -120,22 +191,45 @@ function render() {
   $("#hostBtn").textContent = hostPw ? "Log out of host" : "Host login";
   $("#host").innerHTML = hostPw ? `<div class="hostbar"><strong>Host mode</strong>
     <input id="newDest" placeholder="New destination, e.g. Cowles Mountain, Sat 8am" maxlength="80">
-    <button data-act="addDest">Add destination</button></div>` : "";
+    <button data-act="addDest">Add destination</button>
+    ${data.hikeFeatures ? "" : "<span>Run migrations/001_hike_details.sql in Supabase to enable hike editing and non-carpooling signups.</span>"}</div>` : "";
   if (!data.dests.length) { $("#app").innerHTML = '<p class="empty">No trips yet. ' + (hostPw ? "Add a destination above." : "Check back once the host adds one.") + '</p>'; return; }
   $("#app").innerHTML = data.dests.map(destHTML).join("");
+}
+
+function webLink(value, label) {
+  try {
+    const url = new URL(value);
+    if (["https:", "http:"].includes(url.protocol)) return `<a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`;
+  } catch {}
+  return esc(value);
+}
+
+function hikeInfo(d) {
+  const details = [
+    ["Length", esc(d.distance)], ["Elevation gain", esc(d.elevation_gain)],
+    ["Difficulty", esc(d.difficulty)], ["Expected campus return", esc(d.campus_return)],
+    ["Trail link", webLink(d.trail_url, "View trail")], ["Trailhead", webLink(d.trailhead, d.trailhead)]
+  ].filter(([, value]) => value);
+  if (!details.length) return "";
+  return `<dl class="hike-info">${details.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("")}</dl>`;
 }
 
 function destHTML(d) {
   const cars = data.cars.filter(c => c.destination_id === d.id);
   const riders = data.riders.filter(r => r.destination_id === d.id);
   const wait = riders.filter(r => !r.car_id);
+  const attendees = data.attendees.filter(a => a.destination_id === d.id);
+  const subtitle = [d.meeting_time, d.passenger_fee && `Cost per passenger: ${d.passenger_fee}`].filter(Boolean).join(" · ");
   const open = cars.reduce((n, c) => n + Math.max(0, c.seats - riders.filter(r => r.car_id === c.id).length), 0);
   const v = f(d.id);
   const riderRow = (r, pos) => `<li class="${r.highlighted ? "hl" : ""}"><span>${pos ? pos + ". " : ""}${esc(r.name)}<span class="ph">${esc(r.phone)}</span></span>
     ${hostPw ? `<span class="acts"><button class="ghost small" data-act="hl" data-id="${r.id}">${r.highlighted ? "Unhighlight" : "Highlight"}</button><button class="danger small" data-act="kick" data-id="${r.id}">Kick</button></span>` : ""}</li>`;
   return `<section class="dest" data-dest="${d.id}">
-    <div class="head"><h2>${esc(d.name)}</h2>${hostPw ? `<button class="danger small" data-act="delDest" data-id="${d.id}">Delete destination</button>` : ""}</div>
+    <div class="head"><div><h2>${esc(d.name)}</h2>${subtitle ? `<p>${esc(subtitle)}</p>` : ""}</div>
+      ${hostPw ? `<div class="acts">${data.hikeFeatures ? '<button class="ghost small" data-act="editHike">Edit hike</button>' : ""}<button class="danger small" data-act="delDest" data-id="${d.id}">Delete destination</button></div>` : ""}</div>
     <div class="body">
+      ${hikeInfo(d)}
       <div class="you">
         <input data-field="name" placeholder="Your name" value="${esc(v.name)}" maxlength="60" autocomplete="name">
         <input data-field="phone" type="tel" placeholder="Your phone number" value="${esc(v.phone)}" maxlength="30" autocomplete="tel">
@@ -151,12 +245,16 @@ function destHTML(d) {
           <div class="top"><div><span class="who">${esc(c.driver_name)}</span> <span class="meta">${esc(c.phone)}</span></div>
           <span class="seats">${left > 0 ? left + " of " + c.seats + " seats open" : "Full"}</span></div>
           <ul>${rs.map(r => riderRow(r)).join("")}${left > 0 ? `<li class="open-seat"><span>${left} open ${left === 1 ? "seat" : "seats"}</span><button class="small" data-act="join" data-id="${c.id}">Take a seat</button></li>` : ""}</ul>
-          ${hostPw ? `<div style="margin-top:8px"><button class="danger small" data-act="delCar" data-id="${c.id}">Remove car</button></div>` : ""}
+          ${hostPw ? `<div class="acts" style="margin-top:8px">${data.hikeFeatures ? `<button class="ghost small" data-act="editSeats" data-id="${c.id}">Edit seats</button>` : ""}<button class="danger small" data-act="delCar" data-id="${c.id}">Remove car</button></div>` : ""}
         </div>`;
       }).join("") : '<p class="empty">No drivers yet. Be the first to offer a ride.</p>'}
       ${cars.length && open === 0 ? `<div class="wait"><h3>Waitlist (${wait.length})</h3>
         <button data-act="wait">Join the waitlist</button></div>` : ""}
       ${wait.length ? `<div class="wait" style="${open === 0 ? "border:0;padding-top:0;margin-top:8px" : ""}">${open === 0 ? "" : "<h3>Waitlist (" + wait.length + ")</h3>"}<ul>${wait.map((r, i) => riderRow(r, i + 1)).join("")}</ul></div>` : ""}
+      ${data.hikeFeatures ? `<section class="attendees"><h3>Non-carpooling attendees (${attendees.length})</h3>
+        <ul>${attendees.map(a => `<li><span>${esc(a.name)}<span class="ph">${esc(a.phone)}</span></span>
+        ${hostPw ? `<button class="danger small" data-act="removeAttendee" data-id="${a.id}">Remove</button>` : ""}</li>`).join("")}</ul>
+        <button class="ghost" data-act="registerAttendee">Sign up without a carpool</button></section>` : ""}
     </div></section>`;
 }
 
@@ -171,6 +269,71 @@ async function call(fn, args, ok) {
   await load();
 }
 
+function openForm(selector, id, values, context) {
+  const dialog = $(selector), form = dialog.querySelector("form");
+  form.reset();
+  form.dataset.id = id;
+  for (const field of form.elements) {
+    if (field.name && field.name in values) field.value = values[field.name] ?? "";
+  }
+  form.querySelector(".form-error").textContent = "";
+  if (context) form.querySelector(".context").textContent = context;
+  dialog.showModal();
+  return form;
+}
+
+document.addEventListener("submit", async e => {
+  const form = e.target, dialog = form.closest("dialog");
+  if (!dialog) return;
+  e.preventDefault();
+  if (form.dataset.saving) return;
+  const id = form.dataset.id, values = Object.fromEntries(new FormData(form));
+  let fn, args, message;
+  switch (dialog.id) {
+    case "hikeEditor":
+      fn = "host_edit_hike";
+      args = {p_pw: hostPw, p_dest: id};
+      for (const [key, value] of Object.entries(values)) args["p_" + key] = value.trim();
+      message = "Hike updated.";
+      break;
+    case "seatEditor":
+      fn = "host_set_car_seats";
+      args = {p_pw: hostPw, p_car: id, p_seats: Number(values.seats)};
+      message = "Seat count updated.";
+      break;
+    case "attendeeSignup":
+      fn = "register_non_carpooling";
+      args = {p_dest: id, p_name: values.name.trim(), p_phone: values.phone.trim()};
+      message = "You’re on the non-carpooling roster.";
+      break;
+    case "kickPassenger":
+      fn = values.close_seat ? "host_kick_and_close_seat" : "host_kick";
+      args = {p_pw: hostPw, p_rider: id};
+      if (values.close_seat) args.p_car = form.dataset.car;
+      message = "Passenger removed.";
+      break;
+    default: return;
+  }
+  form.dataset.saving = "true";
+  const buttons = form.querySelectorAll("button");
+  buttons.forEach(b => b.disabled = true);
+  try {
+    const {error} = await sb.rpc(fn, args);
+    if (error) throw error;
+    dialog.close();
+    toast(message);
+    await load();
+  } catch (error) {
+    form.querySelector(".form-error").textContent = error.message || "Could not save. Please try again.";
+  } finally {
+    delete form.dataset.saving;
+    buttons.forEach(b => b.disabled = false);
+  }
+});
+document.querySelectorAll("dialog").forEach(dialog => dialog.addEventListener("cancel", e => {
+  if (dialog.querySelector("form").dataset.saving) e.preventDefault();
+}));
+
 document.addEventListener("input", e => {
   const el = e.target, sec = el.closest("[data-dest]");
   if (sec && el.dataset.field) { f(sec.dataset.dest)[el.dataset.field] = el.value; saveForms(); }
@@ -179,6 +342,20 @@ document.addEventListener("input", e => {
 document.addEventListener("click", async e => {
   const b = e.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act, id = b.dataset.id, sec = b.closest("[data-dest]");
+  if (act === "cancel") return b.closest("dialog").close();
+  const dest = sec && data.dests.find(d => d.id === sec.dataset.dest);
+  if (act === "editHike") return openForm("#hikeEditor", dest.id, dest);
+  if (act === "editSeats") {
+    const car = data.cars.find(c => c.id === id);
+    const occupied = data.riders.filter(r => r.car_id === id).length;
+    return openForm("#seatEditor", id, car, `${car.driver_name}’s car · ${occupied} occupied of ${car.seats} passenger seats`);
+  }
+  if (act === "registerAttendee") return openForm("#attendeeSignup", dest.id, f(dest.id), dest.name);
+  if (act === "removeAttendee") {
+    if (confirm("Remove this attendee from the non-carpooling roster?"))
+      return call("host_remove_attendee", {p_pw: hostPw, p_attendee: id}, "Attendee removed.");
+    return;
+  }
   if (act === "hostToggle") {
     if (hostPw) { hostPw = null; return render(); }
     const pw = prompt("Host password:"); if (!pw) return;
@@ -197,14 +374,21 @@ document.addEventListener("click", async e => {
   if (act === "delDest") { if (!confirm("Delete this destination and everyone signed up for it?")) return;
     return call("host_delete_destination", {p_pw: hostPw, p_id: id}, "Destination deleted."); }
   if (act === "hl") return call("host_toggle_highlight", {p_pw: hostPw, p_rider: id});
-  if (act === "kick") { if (!confirm("Remove this person? The top of the waitlist will take their seat.")) return;
+  if (act === "kick") {
+    const rider = data.riders.find(r => r.id === id), car = data.cars.find(c => c.id === rider.car_id);
+    if (data.hikeFeatures && car && car.seats > 1) {
+      const form = openForm("#kickPassenger", id, {}, `Remove ${rider.name} from ${car.driver_name}’s car? Keeping the seat open lets the next waitlisted passenger take it.`);
+      form.dataset.car = car.id;
+      return;
+    }
+    if (!confirm("Remove this person from the roster?")) return;
     return call("host_kick", {p_pw: hostPw, p_rider: id}, "Removed."); }
   if (act === "delCar") { if (!confirm("Remove this car? Its passengers move to open seats or the waitlist.")) return;
     return call("host_delete_car", {p_pw: hostPw, p_car: id}, "Car removed."); }
 });
 
 load();
-setInterval(() => { if (!document.activeElement.matches("input")) load(); }, 10000);
+setInterval(() => { if (!$("dialog[open]") && !document.activeElement.matches("input, textarea")) load(); }, 10000);
 </script>
 </body>
 </html>
