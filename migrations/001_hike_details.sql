@@ -105,7 +105,8 @@ begin
     where id = p_dest;
 end $$;
 
--- Add the hike and its details together, using the same validation as the editor.
+-- New hikes require meeting and trailhead details. Older hikes remain editable.
+drop function if exists public.host_add_destination(text, text);
 drop function if exists public.host_add_destination(text, text, text, text, text, text, text, text, text, text, text, text);
 create or replace function public.host_add_destination(
   p_pw text, p_name text, p_meeting_time text, p_passenger_fee text,
@@ -116,7 +117,12 @@ create or replace function public.host_add_destination(
 declare new_id uuid;
 begin
   perform assert_host(p_pw);
-  p_name := coalesce(nullif(trim(p_name), ''), 'Untitled hike');
+  if exists (
+    select 1 from unnest(array[p_name, p_meeting_time, p_meeting_location, p_trailhead_eta, p_trailhead]) as field(value)
+    where coalesce(value, '') !~ '[^[:space:]]'
+  ) then
+    raise exception 'Enter the hike name, carpool meeting time and location, ETA at trailhead, and trailhead directions.';
+  end if;
   insert into destinations (name) values (p_name) returning id into new_id;
   perform host_edit_hike(p_pw, new_id, p_name, p_meeting_time, p_passenger_fee,
     p_distance, p_elevation_gain, p_difficulty, p_campus_return, p_trail_url,

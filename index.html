@@ -74,6 +74,7 @@ dialog h2{margin-bottom:16px}
 .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(185px,100%),1fr));gap:12px}
 .fields label{display:grid;gap:4px;align-content:start;font-size:14px;font-weight:600}
 .fields label[hidden]{display:none}
+#hikeEditor label:has(:required)>.field-label::after{content:" (required)";color:var(--rock);font-weight:400}
 .fields input,.fields textarea{width:100%;font-size:16px;font-weight:400}
 .money{position:relative}
 .money>span{position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:16px;font-weight:400}
@@ -99,17 +100,17 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
 <dialog id="hikeEditor" aria-labelledby="hikeEditorTitle">
   <form><h2 id="hikeEditorTitle">Edit hike</h2>
     <div class="fields">
-      <label class="wide">Hike name<input name="name" required placeholder="Fletcher Point"></label>
-      <label>Carpool meeting time<input name="meeting_time" placeholder="Sun 10:30 a.m."></label>
-      <label>Carpool meeting location<input name="meeting_location" placeholder="Price Center Loop"></label>
-      <label>ETA at trailhead<input name="trailhead_eta" placeholder="Sun 11:00 a.m."></label>
+      <label class="wide"><span class="field-label">Hike name</span><input name="name" required placeholder="Fletcher Point"></label>
+      <label><span class="field-label">Carpool meeting time</span><input name="meeting_time" placeholder="Sun 10:30 a.m."></label>
+      <label><span class="field-label">Carpool meeting location</span><input name="meeting_location"></label>
+      <label><span class="field-label">ETA at trailhead</span><input name="trailhead_eta" placeholder="Sun 11:00 a.m."></label>
       <label>Recommended fee per passenger<span class="money"><span aria-hidden="true">$</span><input name="passenger_fee" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></span></label>
       <label>Length<input name="distance" placeholder="3 miles"></label>
       <label>Elevation gain<input name="elevation_gain" placeholder="915 ft"></label>
       <label>Difficulty<input name="difficulty" placeholder="Moderate"></label>
       <label>Expected campus return<input name="campus_return" placeholder="Around 3 p.m."></label>
       <label class="wide">Trail link<input name="trail_url" type="url" pattern="https?://.+" placeholder="https://www.alltrails.com/…"></label>
-      <label class="wide">Trailhead directions<textarea name="trailhead" rows="2" placeholder="See AllTrails link"></textarea></label>
+      <label class="wide"><span class="field-label">Trailhead directions</span><textarea name="trailhead" rows="2" placeholder="Trailhead address or directions"></textarea></label>
       <label class="wide">What to bring<textarea name="what_to_bring" rows="3" placeholder="Water, sunscreen, hiking shoes"></textarea></label>
     </div>
     <p class="form-error" role="alert"></p>
@@ -364,6 +365,9 @@ document.addEventListener("submit", async e => {
     form.elements.name.value = form.elements.name.value.trim();
     form.elements.phone.value = form.elements.phone.value.trim();
     if (!form.reportValidity()) return;
+  } else if (dialog.id === "hikeEditor") {
+    for (const field of form.querySelectorAll(":required")) field.value = field.value.trim();
+    if (!form.reportValidity()) return;
   }
   const id = form.dataset.id, values = Object.fromEntries(new FormData(form));
   if ("passenger_fee" in values) {
@@ -377,13 +381,7 @@ document.addEventListener("submit", async e => {
       args = {p_pw: hostPw};
       if (id) args.p_dest = id;
       for (const [key, value] of Object.entries(values)) args["p_" + key] = value.trim();
-      if (!id) {
-        if (!args.p_what_to_bring) delete args.p_what_to_bring;
-        args.p_name ||= "Untitled hike";
-        // The original name-only function also works before the latest migration.
-        if (Object.entries(values).every(([key, value]) => key === "name" || !value.trim()))
-          args = {p_pw: hostPw, p_name: args.p_name};
-      }
+      if (!id && !args.p_what_to_bring) delete args.p_what_to_bring;
       message = id ? "Hike updated." : "Hike added.";
       break;
     case "seatEditor":
@@ -462,6 +460,22 @@ $("#signup").addEventListener("input", e => {
   saveForms();
 });
 
+$("#hikeEditor").addEventListener("input", e => {
+  const form = e.target.form;
+  if (!form || form.dataset.id) return;
+  const directions = form.elements.trailhead;
+  if (e.target === directions) delete directions.dataset.autofilled;
+  if (e.target !== form.elements.trail_url) return;
+  const hasLink = e.target.value.trim() && e.target.validity.valid;
+  if (hasLink && !directions.value.trim()) {
+    directions.value = "See AllTrails link";
+    directions.dataset.autofilled = "true";
+  } else if (!hasLink && directions.dataset.autofilled) {
+    directions.value = "";
+    delete directions.dataset.autofilled;
+  }
+});
+
 document.addEventListener("click", async e => {
   const b = e.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act, id = b.dataset.id, sec = b.closest("[data-dest]");
@@ -471,11 +485,12 @@ document.addEventListener("click", async e => {
     const creating = act === "addDest";
     $("#hikeEditorTitle").textContent = creating ? "Add hike" : "Edit hike";
     $("#hikeEditor button[type=submit]").textContent = creating ? "Add hike" : "Save hike";
-    const form = openForm("#hikeEditor", creating ? "" : dest.id, dest || {});
-    form.elements.name.required = !creating;
-    form.elements.name.placeholder = creating ? "Untitled hike" : "Fletcher Point";
+    const form = openForm("#hikeEditor", creating ? "" : dest.id, creating ? {meeting_location: "Price Center Loop"} : dest);
+    delete form.elements.trailhead.dataset.autofilled;
+    for (const name of ["meeting_time", "meeting_location", "trailhead_eta", "trailhead"])
+      form.elements[name].required = creating;
     for (const field of form.querySelectorAll("[name]")) {
-      field.disabled = creating ? field.name !== "name" && !data.hikeFeatures : !(field.name in dest);
+      field.disabled = !creating && !(field.name in dest);
     }
     if (form.elements.meeting_location.disabled) {
       form.querySelector(".form-error").textContent = "Run the updated migrations/001_hike_details.sql to enable all hike details.";
