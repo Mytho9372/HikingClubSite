@@ -75,6 +75,8 @@ dialog h2{margin-bottom:16px}
 .fields label{display:grid;gap:4px;align-content:start;font-size:14px;font-weight:600}
 .fields label[hidden]{display:none}
 .fields input,.fields textarea{width:100%;font-size:16px;font-weight:400}
+.fee-field:not([hidden]){display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}
+.fee-field label{flex:1 1 11rem;min-width:0}
 .wide{grid-column:1/-1}
 dialog textarea{resize:vertical}
 dialog .acts{margin-top:16px;justify-content:flex-end}
@@ -121,11 +123,13 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
     <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button>Save seats</button></div>
   </form>
 </dialog>
-<datalist id="feeOptions"><option value="Waived"></option></datalist>
 <dialog id="feeEditor" aria-labelledby="feeEditorTitle">
   <form><h2 id="feeEditorTitle">Edit carpool fee</h2>
     <p class="context"></p>
-    <div class="fields"><label>Fee per passenger<input name="passenger_fee" list="feeOptions" placeholder="e.g. $4 or Waived"></label></div>
+    <div class="fields"><div class="fee-field wide">
+      <label>Fee per passenger<input name="passenger_fee" placeholder="e.g. $4"></label>
+      <button type="button" class="ghost" data-act="waiveFee">Waive fee</button>
+    </div></div>
     <p class="form-error" role="alert"></p>
     <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button>Save fee</button></div>
   </form>
@@ -137,7 +141,10 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
       <label>Your name<input name="name" required maxlength="60" autocomplete="name"></label>
       <label>Your phone number<input name="phone" type="tel" required maxlength="30" autocomplete="tel"></label>
       <label class="wide" hidden>Passenger seats (excluding you)<input name="seats" type="number" min="1" max="20" step="1" required disabled></label>
-      <label class="wide" hidden>Your fee per passenger<input name="passenger_fee" list="feeOptions" placeholder="e.g. $4 or Waived" disabled></label>
+      <div class="fee-field wide" hidden>
+        <label>Your fee per passenger<input name="passenger_fee" placeholder="e.g. $4" disabled></label>
+        <button type="button" class="ghost" data-act="waiveFee">Waive fee</button>
+      </div>
     </div>
     <p class="form-error" role="alert"></p>
     <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button type="submit">Sign up</button></div>
@@ -300,7 +307,7 @@ function openSignup(action, dest, carId) {
   const fee = $("#signup [name=passenger_fee]");
   // Packing notes and per-car fees ship in the same migration, including for hikes with no cars yet.
   fee.disabled = action !== "offer" || !("what_to_bring" in dest);
-  fee.parentElement.hidden = fee.disabled;
+  fee.closest(".fee-field").hidden = fee.disabled;
   $("#signupTitle").textContent = title;
   $("#signup button[type=submit]").textContent = action === "registerAttendee" ? "Sign up" : title;
   let context = dest.name;
@@ -413,6 +420,10 @@ document.addEventListener("click", async e => {
   const b = e.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act, id = b.dataset.id, sec = b.closest("[data-dest]");
   if (act === "cancel") return b.closest("dialog").close();
+  if (act === "waiveFee") {
+    b.form.elements.passenger_fee.value = "Waived";
+    return;
+  }
   const dest = sec && data.dests.find(d => d.id === sec.dataset.dest);
   if (act === "editHike" || act === "addDest") {
     const creating = act === "addDest";
