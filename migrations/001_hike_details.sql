@@ -1,9 +1,12 @@
 -- Existing club database: run this file in the Supabase SQL Editor before publishing index.html.
+-- If an earlier version was already applied, rerun this file to add the new fields.
 -- New installation: run setup.sql first, then this file.
 begin;
 
 alter table public.destinations
   add column if not exists meeting_time text not null default '',
+  add column if not exists meeting_location text not null default '',
+  add column if not exists trailhead_eta text not null default '',
   add column if not exists passenger_fee text not null default '',
   add column if not exists distance text not null default '',
   add column if not exists elevation_gain text not null default '',
@@ -58,6 +61,19 @@ begin
     campus_return = trim(p_campus_return), trail_url = trim(p_trail_url), trailhead = trim(p_trailhead)
     where id = p_dest;
   if not found then raise exception 'That hike no longer exists.'; end if;
+end $$;
+
+-- Older pages still call the original signature and preserve these two fields.
+create or replace function public.host_edit_hike(
+  p_pw text, p_dest uuid, p_name text, p_meeting_time text, p_passenger_fee text,
+  p_distance text, p_elevation_gain text, p_difficulty text, p_campus_return text,
+  p_trail_url text, p_trailhead text, p_meeting_location text, p_trailhead_eta text
+) returns void language plpgsql security definer set search_path = public as $$
+begin
+  perform host_edit_hike(p_pw, p_dest, p_name, p_meeting_time, p_passenger_fee,
+    p_distance, p_elevation_gain, p_difficulty, p_campus_return, p_trail_url, p_trailhead);
+  update destinations set meeting_location = trim(p_meeting_location), trailhead_eta = trim(p_trailhead_eta)
+    where id = p_dest;
 end $$;
 
 -- Serialize capacity changes, seat claims and waitlist promotions for the same hike.
@@ -175,6 +191,7 @@ end $$;
 grant execute on function public.register_non_carpooling(uuid, text, text),
   public.host_remove_attendee(text, uuid),
   public.host_edit_hike(text, uuid, text, text, text, text, text, text, text, text, text),
+  public.host_edit_hike(text, uuid, text, text, text, text, text, text, text, text, text, text, text),
   public.host_set_car_seats(text, uuid, int),
   public.host_kick_and_close_seat(text, uuid, uuid) to anon, authenticated;
 

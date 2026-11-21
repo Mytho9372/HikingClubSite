@@ -98,7 +98,9 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
   <form><h2 id="hikeEditorTitle">Edit hike</h2>
     <div class="fields">
       <label class="wide">Hike name<input name="name" required placeholder="Fletcher Point"></label>
-      <label>Meeting time<input name="meeting_time" placeholder="Sun 10:30 a.m."></label>
+      <label>Carpool meeting time<input name="meeting_time" placeholder="Sun 10:30 a.m."></label>
+      <label>Carpool meeting location<input name="meeting_location" placeholder="Price Center Loop"></label>
+      <label>ETA at trailhead<input name="trailhead_eta" placeholder="Sun 11:00 a.m."></label>
       <label>Cost per passenger<input name="passenger_fee" placeholder="$4"></label>
       <label>Length<input name="distance" placeholder="3 miles"></label>
       <label>Elevation gain<input name="elevation_gain" placeholder="915 ft"></label>
@@ -207,6 +209,8 @@ function webLink(value, label) {
 
 function hikeInfo(d) {
   const details = [
+    ["Carpool meeting time", esc(d.meeting_time)], ["Carpool meeting location", webLink(d.meeting_location, d.meeting_location)],
+    ["ETA at trailhead", esc(d.trailhead_eta)],
     ["Length", esc(d.distance)], ["Elevation gain", esc(d.elevation_gain)],
     ["Difficulty", esc(d.difficulty)], ["Expected campus return", esc(d.campus_return)],
     ["Trail link", webLink(d.trail_url, "View trail")], ["Trailhead", webLink(d.trailhead, d.trailhead)]
@@ -220,7 +224,7 @@ function destHTML(d) {
   const riders = data.riders.filter(r => r.destination_id === d.id);
   const wait = riders.filter(r => !r.car_id);
   const attendees = data.attendees.filter(a => a.destination_id === d.id);
-  const subtitle = [d.meeting_time, d.passenger_fee && `Cost per passenger: ${d.passenger_fee}`].filter(Boolean).join(" · ");
+  const subtitle = d.passenger_fee && `Cost per passenger: ${d.passenger_fee}`;
   const open = cars.reduce((n, c) => n + Math.max(0, c.seats - riders.filter(r => r.car_id === c.id).length), 0);
   const v = f(d.id);
   const riderRow = (r, pos) => `<li class="${r.highlighted ? "hl" : ""}"><span>${pos ? pos + ". " : ""}${esc(r.name)}<span class="ph">${esc(r.phone)}</span></span>
@@ -344,7 +348,17 @@ document.addEventListener("click", async e => {
   const act = b.dataset.act, id = b.dataset.id, sec = b.closest("[data-dest]");
   if (act === "cancel") return b.closest("dialog").close();
   const dest = sec && data.dests.find(d => d.id === sec.dataset.dest);
-  if (act === "editHike") return openForm("#hikeEditor", dest.id, dest);
+  if (act === "editHike") {
+    const form = openForm("#hikeEditor", dest.id, dest);
+    // An older database can still use the original edit function during rollout.
+    for (const name of ["meeting_location", "trailhead_eta"]) {
+      form.elements[name].disabled = !(name in dest);
+    }
+    if (form.elements.meeting_location.disabled) {
+      form.querySelector(".form-error").textContent = "Run the updated migrations/001_hike_details.sql to enable meeting location and trailhead ETA.";
+    }
+    return;
+  }
   if (act === "editSeats") {
     const car = data.cars.find(c => c.id === id);
     const occupied = data.riders.filter(r => r.car_id === id).length;
