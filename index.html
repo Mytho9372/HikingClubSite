@@ -75,8 +75,9 @@ dialog h2{margin-bottom:16px}
 .fields label{display:grid;gap:4px;align-content:start;font-size:14px;font-weight:600}
 .fields label[hidden]{display:none}
 .fields input,.fields textarea{width:100%;font-size:16px;font-weight:400}
-.fee-field:not([hidden]){display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}
-.fee-field label{flex:1 1 11rem;min-width:0}
+.money{position:relative}
+.money>span{position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:16px;font-weight:400}
+.money input{padding-left:25px}
 .wide{grid-column:1/-1}
 dialog textarea{resize:vertical}
 dialog .acts{margin-top:16px;justify-content:flex-end}
@@ -102,7 +103,7 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
       <label>Carpool meeting time<input name="meeting_time" placeholder="Sun 10:30 a.m."></label>
       <label>Carpool meeting location<input name="meeting_location" placeholder="Price Center Loop"></label>
       <label>ETA at trailhead<input name="trailhead_eta" placeholder="Sun 11:00 a.m."></label>
-      <label>Recommended fee per passenger<input name="passenger_fee" placeholder="$4"></label>
+      <label>Recommended fee per passenger<span class="money"><span aria-hidden="true">$</span><input name="passenger_fee" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></span></label>
       <label>Length<input name="distance" placeholder="3 miles"></label>
       <label>Elevation gain<input name="elevation_gain" placeholder="915 ft"></label>
       <label>Difficulty<input name="difficulty" placeholder="Moderate"></label>
@@ -126,10 +127,7 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
 <dialog id="feeEditor" aria-labelledby="feeEditorTitle">
   <form><h2 id="feeEditorTitle">Edit carpool fee</h2>
     <p class="context"></p>
-    <div class="fields"><div class="fee-field wide">
-      <label>Fee per passenger<input name="passenger_fee" placeholder="e.g. $4"></label>
-      <button type="button" class="ghost" data-act="waiveFee">Waive fee</button>
-    </div></div>
+    <div class="fields"><label>Fee per passenger<span class="money"><span aria-hidden="true">$</span><input name="passenger_fee" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></span></label></div>
     <p class="form-error" role="alert"></p>
     <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button>Save fee</button></div>
   </form>
@@ -141,10 +139,7 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
       <label>Your name<input name="name" required maxlength="60" autocomplete="name"></label>
       <label>Your phone number<input name="phone" type="tel" required maxlength="30" autocomplete="tel"></label>
       <label class="wide" hidden>Passenger seats (excluding you)<input name="seats" type="number" min="1" max="20" step="1" required disabled></label>
-      <div class="fee-field wide" hidden>
-        <label>Your fee per passenger<input name="passenger_fee" placeholder="e.g. $4" disabled></label>
-        <button type="button" class="ghost" data-act="waiveFee">Waive fee</button>
-      </div>
+      <label class="wide" hidden>Your fee per passenger<span class="money"><span aria-hidden="true">$</span><input name="passenger_fee" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" disabled></span></label>
     </div>
     <p class="form-error" role="alert"></p>
     <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button type="submit">Sign up</button></div>
@@ -183,6 +178,17 @@ function toast(text, isErr) {
 }
 function saveForms() { try { localStorage.setItem("carpoolForms", JSON.stringify(forms)); } catch (e) {} }
 const f = id => forms[id] || (forms[id] = {name: "", phone: "", seats: 3});
+
+function feeAmount(value) {
+  const text = String(value ?? "").trim();
+  if (/^(?:(?:gas )?fee waived|waived|free|no (?:fee|charge))$/i.test(text)) return "0";
+  return text.match(/^\$?\s*(\d+(?:\.\d{1,2})?|\.\d{1,2})(?:\s*(?:per|\/)\s*(?:passenger|person))?$/i)?.[1] ?? "";
+}
+
+function displayFee(value) {
+  const amount = feeAmount(value);
+  return amount === "" ? value : "$" + Number(amount).toFixed(2);
+}
 
 async function load() {
   const version = ++loadVersion;
@@ -242,7 +248,7 @@ function destHTML(d) {
   const riders = data.riders.filter(r => r.destination_id === d.id);
   const wait = riders.filter(r => !r.car_id);
   const attendees = data.attendees.filter(a => a.destination_id === d.id);
-  const subtitle = d.passenger_fee && `Recommended fee per passenger: ${d.passenger_fee}`;
+  const subtitle = d.passenger_fee && `Recommended fee per passenger: ${displayFee(d.passenger_fee)}`;
   const open = cars.reduce((n, c) => n + Math.max(0, c.seats - riders.filter(r => r.car_id === c.id).length), 0);
   const riderRow = (r, pos) => `<li class="${r.highlighted ? "hl" : ""}"><span>${pos ? pos + ". " : ""}${esc(r.name)}<span class="ph">${esc(r.phone)}</span></span>
     ${hostPw ? `<span class="acts"><button class="ghost small" data-act="hl" data-id="${r.id}">${r.highlighted ? "Unhighlight" : "Highlight"}</button><button class="danger small" data-act="kick" data-id="${r.id}">Remove</button></span>` : ""}</li>`;
@@ -257,7 +263,7 @@ function destHTML(d) {
         return `<div class="car ${left <= 0 ? "full" : ""}">
           <div class="top"><div><span class="who">${esc(c.driver_name)}</span> <span class="meta">${esc(c.phone)}</span></div>
           <span class="seats">${left > 0 ? left + " of " + c.seats + " seats open" : "Full"}</span></div>
-          ${"passenger_fee" in c ? `<p class="car-fee">Fee per passenger: <strong>${esc(c.passenger_fee || "Not specified")}</strong></p>` : ""}
+          ${"passenger_fee" in c ? `<p class="car-fee">Fee per passenger: <strong>${esc(displayFee(c.passenger_fee) || "Not specified")}</strong></p>` : ""}
           <ul>${rs.map(r => riderRow(r)).join("")}${left > 0 ? `<li class="open-seat"><span>${left} open ${left === 1 ? "seat" : "seats"}</span><button class="small" data-act="join" data-id="${c.id}">Take a seat</button></li>` : ""}</ul>
           ${hostPw ? `<div class="acts" style="margin-top:8px">${data.hikeFeatures ? `<button class="ghost small" data-act="editSeats" data-id="${c.id}">Edit seats</button>` : ""}${"passenger_fee" in c ? `<button class="ghost small" data-act="editFee" data-id="${c.id}">Edit fee</button>` : ""}<button class="danger small" data-act="delCar" data-id="${c.id}">Remove car</button></div>` : ""}
         </div>`;
@@ -283,9 +289,16 @@ function openForm(selector, id, values, context) {
   form.reset();
   form.dataset.id = id;
   for (const field of form.elements) {
-    if (field.name && field.name in values) field.value = values[field.name] ?? "";
+    if (field.name && field.name !== "passenger_fee" && field.name in values) field.value = values[field.name] ?? "";
   }
-  form.querySelector(".form-error").textContent = "";
+  const fee = form.elements.passenger_fee;
+  if (fee) {
+    fee.value = feeAmount(values.passenger_fee);
+    // Preserve historical free-text fees until a host supplies a replacement amount.
+    fee.dataset.previous = selector !== "#signup" && !fee.value ? values.passenger_fee || "" : "";
+  }
+  form.querySelector(".form-error").textContent = fee?.dataset.previous
+    ? `Current fee: ${fee.dataset.previous}. Enter an amount to replace it.` : "";
   if (context) form.querySelector(".context").textContent = context;
   dialog.showModal();
   return form;
@@ -307,13 +320,13 @@ function openSignup(action, dest, carId) {
   const fee = $("#signup [name=passenger_fee]");
   // Packing notes and per-car fees ship in the same migration, including for hikes with no cars yet.
   fee.disabled = action !== "offer" || !("what_to_bring" in dest);
-  fee.closest(".fee-field").hidden = fee.disabled;
+  fee.closest("label").hidden = fee.disabled;
   $("#signupTitle").textContent = title;
   $("#signup button[type=submit]").textContent = action === "registerAttendee" ? "Sign up" : title;
   let context = dest.name;
   if (car) {
     context += ` · ${car.driver_name}’s car`;
-    if ("passenger_fee" in car) context += ` · Fee per passenger: ${car.passenger_fee || "Not specified"}`;
+    if ("passenger_fee" in car) context += ` · Fee per passenger: ${displayFee(car.passenger_fee) || "Not specified"}`;
   }
   const form = openForm("#signup", carId || dest.id, {...f(dest.id), passenger_fee: dest.passenger_fee}, context);
   form.dataset.action = action;
@@ -338,6 +351,10 @@ document.addEventListener("submit", async e => {
   e.preventDefault();
   if (form.dataset.saving) return;
   const id = form.dataset.id, values = Object.fromEntries(new FormData(form));
+  if ("passenger_fee" in values) {
+    const fee = form.elements.passenger_fee;
+    values.passenger_fee = fee.value === "" ? fee.dataset.previous : "$" + fee.valueAsNumber.toFixed(2);
+  }
   let fn, args, message;
   switch (dialog.id) {
     case "hikeEditor":
@@ -409,6 +426,17 @@ document.querySelectorAll("dialog").forEach(dialog => dialog.addEventListener("c
   if (dialog.querySelector("form").dataset.saving) e.preventDefault();
 }));
 
+document.addEventListener("paste", e => {
+  if (!e.target.matches(".money input")) return;
+  const text = e.clipboardData?.getData("text/plain").trim();
+  if (!text?.startsWith("$")) return;
+  const amount = feeAmount(text);
+  if (amount !== "") {
+    e.preventDefault();
+    e.target.value = amount;
+  }
+});
+
 $("#signup").addEventListener("input", e => {
   const field = e.target;
   if (field.name === "passenger_fee") return;
@@ -420,10 +448,6 @@ document.addEventListener("click", async e => {
   const b = e.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act, id = b.dataset.id, sec = b.closest("[data-dest]");
   if (act === "cancel") return b.closest("dialog").close();
-  if (act === "waiveFee") {
-    b.form.elements.passenger_fee.value = "Waived";
-    return;
-  }
   const dest = sec && data.dests.find(d => d.id === sec.dataset.dest);
   if (act === "editHike" || act === "addDest") {
     const creating = act === "addDest";
