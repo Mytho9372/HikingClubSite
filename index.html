@@ -82,6 +82,7 @@ dialog h2{margin-bottom:16px}
 .wide{grid-column:1/-1}
 dialog textarea{resize:vertical}
 dialog .acts{margin-top:16px;justify-content:flex-end}
+.notice-text{margin:0;font-size:17px;white-space:pre-line;overflow-wrap:anywhere}
 .form-error{color:var(--bad);font-weight:600}
 .form-error:empty{display:none}
 </style>
@@ -93,10 +94,20 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
 </div></header>
 <main class="wrap">
   <p class="waiver"><strong>First hike with the club?</strong> <a href="https://docs.google.com/forms/d/e/1FAIpQLScuax1QKxfYMH6fqKvNW5aHetM5rffwePlgP7EL4zzC_O_XOw/viewform" target="_blank" rel="noopener noreferrer">Sign the hiking waiver</a> before signing up. You only need to sign once.</p>
+  <p class="waiver">It is <strong>required</strong> to pay the posted gas fee as soon as you join a car. Joining a car without payment <strong>will result in a kick from the hike.</strong> There is no fee to join the waitlist.</p>
+  <p class="waiver">All gas fees will go to our current treasurer, <strong>Affaan Hassan</strong>, through zelle at (714)-458-6033, or venmo at affaan9372</p>
   <div id="host"></div>
   <div id="app"><p class="empty">Loading…</p></div>
 </main>
 <div id="msg" role="status"></div>
+<dialog id="seatNotice" aria-label="Carpool notice">
+  <p class="notice-text"><bold><strong>REMINDER: </strong></bold></p>
+  <br>
+  <p class="notice-text">Paying the gas fee is required upon sign up. All gas fees go to our treasurer, Affaan through zelle (714-458-6033), or venmo (affaan9372).</p>
+  <br>
+  <p class="notice-text">Failing to pay the gas fee <strong>will </strong>result in a kick from the hike.</p>
+  <div class="acts"><button type="button" data-act="dismissSeatNotice" autofocus>I agree</button></div>
+</dialog>
 <dialog id="hikeEditor" aria-labelledby="hikeEditorTitle">
   <form><h2 id="hikeEditorTitle">Edit hike</h2>
     <div class="fields">
@@ -430,6 +441,7 @@ document.addEventListener("submit", async e => {
     if (error) throw error;
     dialog.close();
     toast(message);
+    if (dialog.id === "signup" && form.dataset.action === "join" && !hostPw) $("#seatNotice").showModal();
     await load();
   } catch (error) {
     form.querySelector(".form-error").textContent = error.message || "Could not save. Please try again.";
@@ -439,7 +451,7 @@ document.addEventListener("submit", async e => {
   }
 });
 document.querySelectorAll("dialog").forEach(dialog => dialog.addEventListener("cancel", e => {
-  if (dialog.querySelector("form").dataset.saving) e.preventDefault();
+  if (dialog.id === "seatNotice" || dialog.querySelector("form")?.dataset.saving) e.preventDefault();
 }));
 
 document.addEventListener("paste", e => {
@@ -480,6 +492,7 @@ document.addEventListener("click", async e => {
   const b = e.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act, id = b.dataset.id, sec = b.closest("[data-dest]");
   if (act === "cancel") return b.closest("dialog").close();
+  if (act === "dismissSeatNotice") return $("#seatNotice").close();
   const dest = sec && data.dests.find(d => d.id === sec.dataset.dest);
   if (act === "editHike" || act === "addDest") {
     const creating = act === "addDest";
