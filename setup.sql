@@ -1,4 +1,5 @@
--- Run this whole file once in Supabase: SQL Editor -> New query -> paste -> Run.
+-- New installations: run this file once in the Supabase SQL Editor, then migrations/001_hike_details.sql.
+-- Existing installations: run only the migration.
 
 create table destinations (
   id uuid primary key default gen_random_uuid(),
