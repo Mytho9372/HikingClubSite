@@ -83,6 +83,9 @@ dialog h2{margin-bottom:16px}
 dialog textarea{resize:vertical}
 dialog .acts{margin-top:16px;justify-content:flex-end}
 .notice-text{margin:0;font-size:17px;white-space:pre-line;overflow-wrap:anywhere}
+.fields label.consent{display:flex;gap:8px;align-items:flex-start;font-weight:400}
+.fields label.consent[hidden]{display:none}
+.fields .consent input{width:auto;margin-top:4px}
 .form-error{color:var(--bad);font-weight:600}
 .form-error:empty{display:none}
 </style>
@@ -153,6 +156,7 @@ dialog .acts{margin-top:16px;justify-content:flex-end}
       <label>Your phone number<input name="phone" type="tel" required maxlength="30" autocomplete="tel"></label>
       <label class="wide" hidden>Passenger seats (excluding you)<input name="seats" type="number" min="1" max="20" step="1" required disabled></label>
       <label class="wide" hidden>Your fee per passenger<span class="money"><span aria-hidden="true">$</span><input name="passenger_fee" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" disabled></span></label>
+      <label class="wide consent" hidden><input name="sms_consent" type="checkbox" required disabled><span>I agree to receive one text message at this number when a seat opens up for me. Message and data rates may apply. Reply STOP to opt out.</span></label>
     </div>
     <p class="form-error" role="alert"></p>
     <div class="acts"><button type="button" class="ghost" data-act="cancel">Cancel</button><button type="submit">Sign up</button></div>
@@ -336,6 +340,9 @@ function openSignup(action, dest, carId) {
   const seats = $("#signup [name=seats]");
   seats.disabled = action !== "offer";
   seats.parentElement.hidden = seats.disabled;
+  const consent = $("#signup [name=sms_consent]");
+  consent.disabled = action !== "wait";
+  consent.closest("label").hidden = consent.disabled;
   const fee = $("#signup [name=passenger_fee]");
   // Packing notes and per-car fees ship in the same migration, including for hikes with no cars yet.
   fee.disabled = action !== "offer" || !("what_to_bring" in dest);
@@ -412,6 +419,7 @@ document.addEventListener("submit", async e => {
       if (hostPw && action !== "wait") args.p_pw = hostPw;
       if (action === "join") args.p_car = id;
       else args.p_dest = id;
+      if (action === "wait") args.p_sms_consent = form.elements.sms_consent.checked;
       if (action === "offer") {
         args.p_seats = values.seats === "" ? null : Number(values.seats);
         if ("passenger_fee" in values) args.p_passenger_fee = values.passenger_fee.trim();
